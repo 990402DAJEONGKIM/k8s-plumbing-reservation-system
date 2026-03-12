@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  # 1. Node.js 백엔드 서비스
+  backend:
+    build: ./backend
+    container_name: plumbing-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=10.0.0.31  # 설계하신 MySQL Master IP
+      - DB_USER=root
+      - DB_PASSWORD=your_password
+    networks:
+      - app-network
+
+  # 2. 프론트엔드 서비스
+  frontend:
+    build: ./frontend
+    container_name: plumbing-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
