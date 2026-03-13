@@ -9,43 +9,22 @@ app.use(express.json());
 const dbConfig = {
     host: '127.0.0.1',
     user: 'root',
-    password: '8850', // ★ MariaDB 비번 입력
+    password: '8850', // 비번 확인
     database: 'plumbing_db',
     port: 3306
 };
 const pool = mysql.createPool(dbConfig);
 
-// [API] 예약 신청
-app.post('/api/v1/reservations', async (req, res) => {
-    const { name, phone, address, issueType } = req.body;
-    const resNumber = `RES-${Date.now()}`;
-    try {
-        await pool.execute(
-            'INSERT INTO reservations (res_number, customer_name, phone_number, address, issue_type, status) VALUES (?, ?, ?, ?, ?, ?)',
-            [resNumber, name, phone, address, issueType, 'PENDING']
-        );
-        res.status(201).json({ success: true, resNumber });
-    } catch (err) { res.status(500).json({ success: false }); }
-});
-
-// [API] 고객용 예약 상세 조회
-app.get('/api/v1/reservations/:resNumber', async (req, res) => {
-    try {
-        const [rows] = await pool.execute('SELECT * FROM reservations WHERE res_number = ?', [req.params.resNumber.trim()]);
-        if (rows.length > 0) res.json({ success: true, data: rows[0] });
-        else res.status(404).json({ success: false, message: "내역 없음" });
-    } catch (err) { res.status(500).json({ success: false }); }
-});
-
-// [API] 관리자용 전체 목록 조회
+// [API] 예약 관리 - 검색 및 필터링
 app.get('/api/admin/reservations', async (req, res) => {
-    const { status } = req.query;
+    const { status, search } = req.query;
     try {
-        let sql = 'SELECT * FROM reservations';
+        let sql = 'SELECT * FROM reservations WHERE 1=1';
         const params = [];
-        if (status && status !== 'ALL') {
-            sql += ' WHERE status = ?';
-            params.push(status);
+        if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
+        if (search) {
+            sql += ' AND (res_number LIKE ? OR customer_name LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`);
         }
         sql += ' ORDER BY created_at DESC';
         const [rows] = await pool.execute(sql, params);
@@ -53,33 +32,51 @@ app.get('/api/admin/reservations', async (req, res) => {
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
+// [API] 고객 관리 - 검색 및 주소/방문횟수 포함
+app.get('/api/admin/customers', async (req, res) => {
+    const { search } = req.query;
+    try {
+        let sql = `
+            SELECT 
+                c.customer_name, 
+                c.phone_number, 
+                c.address, 
+                c.grade,
+                (SELECT COUNT(*) FROM reservations r WHERE r.phone_number = c.phone_number) as visit_count,
+                (SELECT MAX(created_at) FROM reservations r WHERE r.phone_number = c.phone_number) as last_visit
+            FROM customers c
+            WHERE 1=1
+        `;
+        const params = [];
+        if (search) {
+            sql += ' AND (c.customer_name LIKE ? OR c.phone_number LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`);
+        }
+        sql += ' ORDER BY last_visit DESC';
+        const [rows] = await pool.execute(sql, params);
+        res.json({ success: true, list: rows });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
 
-// [관리자 전용] 상태 업데이트 API
+// [API] 일정 조회 - 날짜별 요약
+app.get('/api/admin/calendar', async (req, res) => {
+    try {
+        const [rows] = await pool.execute(`
+            SELECT DATE_FORMAT(created_at, "%Y-%m-%d") as date, COUNT(*) as count 
+            FROM reservations GROUP BY date ORDER BY date DESC
+        `);
+        res.json({ success: true, list: rows });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// [API] 상태 업데이트 (중요: 대문자로 변환하여 저장)
 app.patch('/api/admin/reservations/:id', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
-
-    // 데이터가 잘 들어오는지 터미널에 출력 (디버깅용)
-    console.log(`[상태 변경 요청] ID: ${id}, 변경할 상태: ${status}`);
-
     try {
-        // 혹시 모를 공백 제거 및 길이 제한 (안전장치)
-        const cleanStatus = status.trim().toUpperCase().substring(0, 20);
-
-        const [result] = await pool.execute(
-            'UPDATE reservations SET status = ? WHERE id = ?',
-            [cleanStatus, id]
-        );
-
-        if (result.affectedRows > 0) {
-            res.json({ success: true, message: "상태 업데이트 성공" });
-        } else {
-            res.status(404).json({ success: false, message: "해당 예약을 찾을 수 없습니다." });
-        }
-    } catch (err) {
-        console.error("DB 에러:", err);
-        res.status(500).json({ success: false, message: "서버 오류 발생" });
-    }
+        await pool.execute('UPDATE reservations SET status = ? WHERE id = ?', [status.toUpperCase(), id]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
 });
 
-app.listen(4000, () => console.log('🚀 Backend: http://localhost:4000'));
+app.listen(4000, () => console.log('🚀 Admin Server: http://localhost:4000'));
