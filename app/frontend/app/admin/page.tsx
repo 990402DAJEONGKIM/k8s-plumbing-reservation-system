@@ -3,17 +3,21 @@ import { useState, useEffect } from 'react';
 import { 
   ClipboardList, Calendar, Users, Activity, Settings, 
   Search, HeartPulse, CheckCircle2, Truck, Wrench, History, 
-  AlertCircle, Download, Bell, BellOff, Server
+  AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('시스템 모니터링');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
-  const [data, setData] = useState({ reservations: [], customers: [] });
+  const [data, setData] = useState({ reservations: [], customers: [], announcements: [] });
   const [sysStats, setSysStats] = useState({ cpu: '0%', mem: '0%', errCount: 0, logs: [] });
   // 설정 상태
   const [config, setConfig] = useState({ isMaintenance: false, notificationEnabled: true });
+  const [adminUsername, setAdminUsername] = useState('');
+  
+  // 공지사항 관리 상태
+  const [currentAnnounce, setCurrentAnnounce] = useState<{ id: number | null; title: string; content: string; }>({ id: null, title: '', content: '' });
 
   // 데이터 로딩
   const loadData = async () => {
@@ -31,6 +35,14 @@ export default function AdminDashboard() {
         const res = await fetch(`${baseUrl}/settings`);
         const result = await res.json();
         if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
+        
+        const accountRes = await fetch(`${baseUrl}/account`);
+        const accountResult = await accountRes.json();
+        if (accountResult.success) setAdminUsername(accountResult.username);
+      } else if (activeMenu === '공지사항 관리') {
+        const res = await fetch(`${baseUrl}/announcements`);
+        const result = await res.json();
+        if (result.success) setData(p => ({ ...p, announcements: result.list }));
       }
     } catch (e) { console.error("Load Failed"); }
   };
@@ -75,6 +87,80 @@ export default function AdminDashboard() {
     } catch (e) { console.error("Toggle Failed"); }
   };
 
+  const handleAccountUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const currentPassword = formData.get('currentPassword') as string;
+    const newUsername = formData.get('newUsername') as string;
+    const newPassword = formData.get('newPassword') as string;
+
+    if (!currentPassword) {
+      alert('현재 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const res = await fetch('http://localhost:4000/api/admin/account', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newUsername, newPassword })
+      });
+
+      const result = await res.json();
+      if (res.ok) {
+        alert('계정 정보가 성공적으로 변경되었습니다.');
+        loadData(); // 사용자 이름 등 최신 정보 다시 로드
+        e.currentTarget.reset();
+      } else {
+        alert(`오류: ${result.message}`);
+      }
+    } catch (err) {
+      alert('계정 정보 변경 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleAnnounceSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const { id, title, content } = currentAnnounce;
+    const url = id ? `http://localhost:4000/api/admin/announcements/${id}` : 'http://localhost:4000/api/admin/announcements';
+    const method = id ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      });
+      if (res.ok) {
+        alert(`공지사항이 성공적으로 ${id ? '수정' : '등록'}되었습니다.`);
+        loadData();
+        setCurrentAnnounce({ id: null, title: '', content: '' });
+      } else {
+        const result = await res.json();
+        alert(`오류: ${result.message}`);
+      }
+    } catch (err) {
+      alert('공지사항 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+  const deleteAnnounce = async (id: number) => {
+    if (confirm('정말로 이 공지사항을 삭제하시겠습니까?')) {
+      try {
+        const res = await fetch(`http://localhost:4000/api/admin/announcements/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('공지사항이 삭제되었습니다.');
+          loadData();
+        } else {
+          alert('삭제 실패');
+        }
+      } catch (err) {
+        alert('삭제 처리 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
+
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
       <aside className="w-72 bg-[#1a1f2e] text-white flex flex-col p-6 shrink-0 shadow-2xl">
@@ -82,12 +168,13 @@ export default function AdminDashboard() {
           <HeartPulse className="text-indigo-500" size={28} /> Plumbing Admin
         </div>
         <nav className="space-y-1.5 flex-grow">
-          {['예약 관리', '일정 조회', '고객 관리', '시스템 모니터링', '설정'].map((menu) => (
+          {['예약 관리', '일정 조회', '고객 관리', '공지사항 관리', '시스템 모니터링', '설정'].map((menu) => (
             <button key={menu} onClick={() => {setActiveMenu(menu); setSearch('');}} 
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] font-bold transition-all ${activeMenu === menu ? 'bg-indigo-600 shadow-lg' : 'text-slate-400 hover:bg-slate-800'}`}>
               {menu === '예약 관리' && <ClipboardList size={20}/>}
               {menu === '일정 조회' && <Calendar size={20}/>}
               {menu === '고객 관리' && <Users size={20}/>}
+              {menu === '공지사항 관리' && <Megaphone size={20}/>}
               {menu === '시스템 모니터링' && <Activity size={20}/>}
               {menu === '설정' && <Settings size={20}/>}
               {menu}
@@ -105,6 +192,7 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-4">
             {config.isMaintenance && <span className="flex items-center gap-2 text-xs text-rose-500 animate-pulse"><Server size={14}/> 점검 모드 활성화 중</span>}
+            <div className="text-sm">Admin: <span className="font-black text-indigo-600">{adminUsername}</span></div>
             <div className="text-sm">데이터 연동: <span className="text-indigo-600 font-black italic">Connected</span></div>
           </div>
         </header>
@@ -230,12 +318,83 @@ export default function AdminDashboard() {
                     <p className="text-sm text-slate-400 font-bold not-italic mt-1">현재 데이터베이스의 전체 상태를 SQL 파일로 다운로드합니다.</p>
                   </div>
                   <button 
-                    onClick={() => window.location.href = 'http://localhost:4000/api/admin/settings/backup'}
+                    onClick={() => window.location.href = 'http://localhost:4000/api/admin/backup/download'}
                     className="flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl hover:bg-indigo-600 transition-all uppercase text-xs"
                   >
                     <Download size={18}/> Download SQL
                   </button>
                 </div>
+                
+                {/* 4. 관리자 계정 설정 */}
+                <div className="bg-white p-8 rounded-[40px] border shadow-sm text-left font-black italic">
+                  <h3 className="text-xl flex items-center gap-2 uppercase tracking-tighter">Admin Account Settings</h3>
+                  <p className="text-sm text-slate-400 font-bold not-italic mt-1 mb-6">관리자 아이디와 비밀번호를 변경합니다.</p>
+                  <form onSubmit={handleAccountUpdate} className="space-y-4">
+                    <input type="password" name="currentPassword" placeholder="현재 비밀번호" required className="w-full bg-slate-100 p-4 rounded-2xl outline-none not-italic" />
+                    <input type="text" name="newUsername" placeholder="새 아이디 (변경 시 입력)" className="w-full bg-slate-100 p-4 rounded-2xl outline-none not-italic" />
+                    <input type="password" name="newPassword" placeholder="새 비밀번호 (변경 시 입력)" className="w-full bg-slate-100 p-4 rounded-2xl outline-none not-italic" />
+                    <button type="submit" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl hover:bg-indigo-700 transition-all uppercase text-xs">
+                      계정 정보 변경
+                    </button>
+                  </form>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {activeMenu === '공지사항 관리' && (
+            <div className="space-y-10 animate-in fade-in">
+              <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Announcements</h2>
+              
+              {/* 공지사항 등록/수정 폼 */}
+              <div className="bg-white p-8 rounded-[40px] border shadow-sm text-left font-black italic">
+                <h3 className="text-xl flex items-center gap-2 uppercase tracking-tighter">
+                  {currentAnnounce.id ? 'Edit Announcement' : 'Create New Announcement'}
+                </h3>
+                <form onSubmit={handleAnnounceSubmit} className="space-y-4 mt-6 not-italic">
+                  <input 
+                    type="text" 
+                    placeholder="제목" 
+                    value={currentAnnounce.title}
+                    onChange={e => setCurrentAnnounce(p => ({ ...p, title: e.target.value }))}
+                    required 
+                    className="w-full bg-slate-100 p-4 rounded-2xl outline-none" />
+                  <textarea 
+                    placeholder="내용" 
+                    value={currentAnnounce.content}
+                    onChange={e => setCurrentAnnounce(p => ({ ...p, content: e.target.value }))}
+                    required 
+                    rows={4}
+                    className="w-full bg-slate-100 p-4 rounded-2xl outline-none" />
+                  <div className="flex gap-2">
+                    <button type="submit" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl hover:bg-indigo-700 transition-all uppercase text-xs">
+                      {currentAnnounce.id ? '수정하기' : '등록하기'}
+                    </button>
+                    {currentAnnounce.id && (
+                      <button type="button" onClick={() => setCurrentAnnounce({ id: null, title: '', content: '' })} className="bg-slate-200 text-slate-600 px-8 py-4 rounded-2xl hover:bg-slate-300 transition-all uppercase text-xs">
+                        취소
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* 공지사항 목록 */}
+              <div className="space-y-4">
+                {data.announcements.map((item: any) => (
+                  <div key={item.id} className="bg-white p-6 rounded-[35px] border flex justify-between items-center shadow-sm text-left">
+                    <div>
+                      <h3 className="text-xl font-black italic text-slate-800">{item.title}</h3>
+                      <p className="text-sm text-slate-500 font-bold mt-1">{item.content}</p>
+                      <p className="text-xs text-slate-400 font-mono mt-2">{new Date(item.createdAt).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setCurrentAnnounce(item)} className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-indigo-600 hover:text-white transition"><Edit size={16}/></button>
+                      <button onClick={() => deleteAnnounce(item.id)} className="p-3 bg-slate-50 text-slate-600 rounded-xl hover:bg-rose-500 hover:text-white transition"><Trash2 size={16}/></button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
