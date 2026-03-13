@@ -1,10 +1,29 @@
 "use client";
-import { useState } from 'react';
-import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X } from 'lucide-react';
 
 export default function Home() {
   const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수' });
   const [submittedNumber, setSubmittedNumber] = useState('');
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [showPopup, setShowPopup] = useState(false);
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const res = await fetch('http://localhost:4000/api/admin/announcements');
+        const data = await res.json();
+        if (data.success && data.list.length > 0) {
+          // 가장 최신 공지 2개만 가져오기
+          setAnnouncements(data.list.slice(0, 2));
+          setShowPopup(true); // 공지 있으면 팝업 표시
+        }
+      } catch (err) {
+        console.error("공지사항 로드 실패:", err);
+      }
+    };
+    fetchAnnouncements();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +40,23 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900">
+      
+      {/* 최상단 공지사항 팝업 배너 컨테이너 */}
+      {showPopup && announcements.length > 0 && (
+        <div className="bg-red-600 text-white p-4 text-center relative animate-in slide-in-from-top duration-500 space-y-2">
+          {announcements.map((announcement) => (
+            <p key={announcement.id} className="font-bold">
+              <Megaphone size={16} className="inline-block mr-2" />
+              <span className="font-black italic mr-2">[{announcement.title}]</span>
+              {announcement.content}
+            </p>
+          ))}
+          <button onClick={() => setShowPopup(false)} className="absolute top-1/2 right-4 -translate-y-1/2 hover:bg-white/20 rounded-full p-1">
+            <X size={20} />
+          </button>
+        </div>
+      )}
+
       {/* 상단 바 */}
       <div className="bg-[#e31837] text-white py-3 px-4 sticky top-0 z-50 shadow-md font-bold">
         <div className="max-w-7xl mx-auto flex justify-between items-center text-xs md:text-sm">
@@ -94,6 +130,7 @@ export default function Home() {
           </div>
         </div>
       </section>
+      
       <footer className="bg-gray-100 py-16 px-4 border-t-8 border-[#2b1c6d] text-center">
         <p className="font-black text-5xl text-[#2b1c6d] italic uppercase tracking-tighter">Uncle Plumbing</p>
         <p className="text-sm text-gray-400 font-bold uppercase tracking-widest mt-4">Your Trusted Local Experts © 2026</p>

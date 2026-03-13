@@ -1,12 +1,30 @@
 "use client";
 
-import { useState } from 'react';
-import { Search, Clock, Phone, Wrench, CheckCircle2, PackageCheck, Construction, RefreshCcw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Clock, Phone, Wrench, CheckCircle2, PackageCheck, Construction, RefreshCcw, Megaphone } from 'lucide-react';
 
 export default function StatusPage() {
   const [resNumber, setResNumber] = useState('');
   const [data, setData] = useState<any>(null);
   const [isMaintenance, setIsMaintenance] = useState(false); // 점검 상태 관리
+  const [announcements, setAnnouncements] = useState<any[]>([]); // 공지사항 상태
+
+  // 공지사항 로드
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const res = await fetch(`http://localhost:4000/api/admin/announcements`);
+        const result = await res.json();
+        if (result.success) {
+          setAnnouncements(result.list);
+        }
+      } catch (err) {
+        // 공지사항 로드 실패는 치명적이지 않으므로 콘솔에만 기록
+        console.error("공지사항 로드 실패:", err);
+      }
+    };
+    fetchAnnouncements();
+  }, []);
 
   const onSearch = async () => {
     if (!resNumber) return;
@@ -144,6 +162,25 @@ export default function StatusPage() {
             </div>
             <div className="mt-8 pt-4 border-t border-dotted text-right text-[10px] text-gray-300 font-bold uppercase tracking-widest">
               Reference: {data.res_number}
+            </div>
+          </div>
+        )}
+
+        {/* 공지사항 영역 */}
+        {announcements.length > 0 && (
+          <div className="mt-20 text-left animate-in fade-in duration-500">
+            <h2 className="text-3xl font-black italic tracking-tighter uppercase flex items-center gap-3 mb-6">
+              <Megaphone size={28} className="text-red-500"/>
+              Announcements
+            </h2>
+            <div className="space-y-4">
+              {announcements.map(item => (
+                <div key={item.id} className="bg-white/10 p-6 rounded-lg border-l-4 border-red-500">
+                  <h3 className="text-xl font-black italic">{item.title}</h3>
+                  <p className="text-white/80 font-bold mt-2">{item.content}</p>
+                  <p className="text-xs text-white/40 font-mono mt-3">{new Date(item.createdAt).toLocaleString()}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
