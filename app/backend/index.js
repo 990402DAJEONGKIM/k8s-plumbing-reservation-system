@@ -49,7 +49,7 @@ app.post('/api/admin/login', async (req, res) => {
 
 // [API] 0.5 사용자 예약 접수 (Front -> Backend)
 app.post('/api/reservations', async (req, res) => {
-    const { name, phone, address, issueType } = req.body;
+    const { name, phone, address, issueType, reservation_datetime } = req.body;
     
     // 예약 번호 생성 (예: RES-20240101-1234)
     const date = new Date();
@@ -60,8 +60,8 @@ app.post('/api/reservations', async (req, res) => {
     try {
         // 1. 예약 정보 저장
         await pool.execute(
-            'INSERT INTO reservations (res_number, customer_name, phone_number, address, issue_type) VALUES (?, ?, ?, ?, ?)',
-            [resNumber, name, phone, address, issueType]
+            'INSERT INTO reservations (res_number, customer_name, phone_number, address, issue_type, reservation_datetime) VALUES (?, ?, ?, ?, ?, ?)',
+            [resNumber, name, phone, address, issueType, reservation_datetime || null]
         );
         // 2. 고객 목록에도 저장 (이미 같은 전화번호가 있으면 무시)
         await pool.execute(

@@ -4,7 +4,7 @@ import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipet
 import { useAnnouncements } from '../lib/hooks';
 
 export default function Home() {
-  const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수' });
+  const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수', reservation_datetime: '' });
   const [submittedNumber, setSubmittedNumber] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const announcements = useAnnouncements();
@@ -107,7 +107,10 @@ export default function Home() {
                 <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Name</label><input type="text" placeholder="성함" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, name: e.target.value})} /></div>
                 <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Phone</label><input type="text" placeholder="연락처" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, phone: e.target.value})} /></div>
               </div>
-              <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Address</label><input type="text" placeholder="상세 주소" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, address: e.target.value})} /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Address</label><input type="text" placeholder="상세 주소" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, address: e.target.value})} /></div>
+                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Date & Time</label><input type="datetime-local" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, reservation_datetime: e.target.value})} /></div>
+              </div>
               <select className="w-full p-5 bg-white text-black font-black outline-none border-b-8 border-red-600" onChange={e => setForm({...form, issueType: e.target.value})}>
                 <option>누수/방수</option><option>변기/하수구 막힘</option><option>보일러/배관 청소</option>
               </select>
