@@ -20,10 +20,12 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=your_password
-      - DB_NAME=plumbing_db
+      # 💡 K8s 이전 테스트 시에도 유연하게 주입할 수 있도록 변경
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-your_password}
+      - DB_NAME=${DB_NAME:-plumbing_db}
     networks:
       - app-network
     depends_on:
@@ -35,6 +37,9 @@ services:
     container_name: plumbing-frontend
     ports:
       - "3000:3000"
+    environment:
+      # 💡 프론트엔드 컨테이너가 바라볼 백엔드 외부 진입점 주소
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4000}
     depends_on:
       - backend
     networks:

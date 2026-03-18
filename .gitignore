@@ -1,8 +1,10 @@
-# Node.js
+# Dependencies
 node_modules/
-npm-debug.log
+
+# Environment variables (Secret!)
 .env
 
-# OS
-.DS_Store
-Thumbs.db
+# Build & Logs
+.next/
+*.log
+*.sql

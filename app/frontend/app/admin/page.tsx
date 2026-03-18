@@ -8,6 +8,9 @@ import {
 import { fetcher } from '../../lib/api';
 
 export default function AdminDashboard() {
+  // 💡 Cloud-Native: 하드코딩된 로컬 주소 대신 환경변수 사용 (기본값 fallback 처리)
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
   // 로그인 상태 관리
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginUsername, setLoginUsername] = useState('');
@@ -41,7 +44,7 @@ export default function AdminDashboard() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:4000/api/admin/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: loginUsername, password: loginPassword })
@@ -89,7 +92,7 @@ export default function AdminDashboard() {
     setSelectedDate(dateStr);
     try {
       // 💡 fetcher 대신 완벽하게 캐시를 우회하는 네이티브 fetch 사용
-      const res = await fetch(`http://localhost:4000/api/admin/reservations?status=ALL&search=${encodeURIComponent(dateStr)}&_t=${Date.now()}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/reservations?status=ALL&search=${encodeURIComponent(dateStr)}&_t=${Date.now()}`, {
         cache: 'no-store',
         headers: { 'Pragma': 'no-cache' }
       });
@@ -531,7 +534,7 @@ export default function AdminDashboard() {
                     <p className="text-sm text-slate-400 font-bold not-italic mt-1">현재 데이터베이스의 전체 상태를 SQL 파일로 다운로드합니다.</p>
                   </div>
                   <button 
-                    onClick={() => window.location.href = 'http://localhost:4000/api/admin/backup/download'}
+                    onClick={() => window.location.href = `${API_BASE_URL}/api/admin/backup/download`}
                     className="flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl hover:bg-indigo-600 transition-all uppercase text-xs"
                   >
                     <Download size={18}/> Download SQL
