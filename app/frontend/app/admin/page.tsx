@@ -8,6 +8,11 @@ import {
 import { fetcher } from '../../lib/api';
 
 export default function AdminDashboard() {
+  // 로그인 상태 관리
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
   const [activeMenu, setActiveMenu] = useState('시스템 모니터링');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
@@ -24,6 +29,34 @@ export default function AdminDashboard() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedDateReservations, setSelectedDateReservations] = useState<any[]>([]);
+
+  // 로그인 유지 체크 (새로고침 방어)
+  useEffect(() => {
+    if (localStorage.getItem('admin_logged_in') === 'true') {
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  // 로그인 요청 처리
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`http://localhost:4000/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: loginUsername, password: loginPassword })
+      });
+      const result = await res.json();
+      if (result.success) {
+        localStorage.setItem('admin_logged_in', 'true');
+        setIsLoggedIn(true);
+      } else {
+        alert(result.message || '로그인에 실패했습니다.');
+      }
+    } catch (e) {
+      alert('로그인 요청 중 오류가 발생했습니다.');
+    }
+  };
 
   // 데이터 로딩
   const loadData = async () => {
@@ -67,6 +100,7 @@ export default function AdminDashboard() {
 
   // 실시간 모니터링 (2초 간격)
   useEffect(() => {
+    if (!isLoggedIn) return; // 로그인 전에는 모니터링 중지
     const fetchMonitor = async () => {
       try {
         const result = await fetcher(`/api/admin/monitor-data?_t=${Date.now()}`);
@@ -76,9 +110,11 @@ export default function AdminDashboard() {
     fetchMonitor();
     const timer = setInterval(fetchMonitor, 2000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isLoggedIn]);
 
-  useEffect(() => { loadData(); }, [activeMenu, filter, search]);
+  useEffect(() => { 
+    if (isLoggedIn) loadData(); 
+  }, [activeMenu, filter, search, isLoggedIn]);
 
   const changeStatus = async (id: number, status: string) => {
     try {
@@ -164,6 +200,53 @@ export default function AdminDashboard() {
     }
   };
 
+  // 로그인 되지 않은 상태일 때 보여줄 화면 (로그인 폼)
+  if (!isLoggedIn) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50 relative overflow-hidden">
+        {/* 배경 장식 (은은한 그라데이션 빛) */}
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-rose-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div className="bg-white/70 backdrop-blur-2xl p-12 rounded-[40px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-white w-[420px] text-center relative z-10 animate-in fade-in zoom-in duration-700">
+          <div className="mx-auto bg-gradient-to-tr from-indigo-600 to-violet-500 w-20 h-20 rounded-[24px] flex items-center justify-center shadow-xl shadow-indigo-500/30 mb-8 transform -rotate-3 hover:rotate-0 transition-all duration-300">
+            <HeartPulse className="text-white" size={40} />
+          </div>
+          
+          <h1 className="text-3xl font-black italic tracking-tighter uppercase mb-2 text-slate-800">Welcome Back</h1>
+          <p className="text-slate-500 text-sm font-bold mb-10">엉클 배관 관리자 시스템에 로그인하세요</p>
+          
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="text-left">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Admin ID</label>
+              <input 
+                type="text" 
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                className="w-full bg-white/50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-slate-800 transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10" 
+                required 
+              />
+            </div>
+            <div className="text-left">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-2">Password</label>
+              <input 
+                type="password" 
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-white/50 border border-slate-200 p-4 rounded-2xl outline-none font-bold text-slate-800 transition-all focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10" 
+                required 
+              />
+            </div>
+            <div className="pt-2">
+              <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-600 hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all duration-300">
+                Sign In
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
@@ -198,6 +281,9 @@ export default function AdminDashboard() {
             {config.isMaintenance && <span className="flex items-center gap-2 text-xs text-rose-500 animate-pulse"><Server size={14}/> 점검 모드 활성화 중</span>}
             <div className="text-sm">Admin: <span className="font-black text-indigo-600">{adminUsername}</span></div>
             <div className="text-sm">데이터 연동: <span className="text-indigo-600 font-black italic">Connected</span></div>
+            <button onClick={() => { localStorage.removeItem('admin_logged_in'); setIsLoggedIn(false); }} className="text-xs bg-slate-100 hover:bg-rose-100 hover:text-rose-600 px-4 py-2 rounded-xl font-black transition">
+              로그아웃
+            </button>
           </div>
         </header>
 

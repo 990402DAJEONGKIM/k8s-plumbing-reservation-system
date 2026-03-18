@@ -22,19 +22,6 @@ const pool = mysql.createPool(dbConfig);
 let errorLogs = [];
 let isMaintenance = false;
 
-// 관리자 계정 정보 (원래는 DB에 저장해야 함)
-let adminAccount = {
-    username: 'admin',
-    password: 'password' // 실제 환경에서는 해시 처리 필수
-};
-
-// 공지사항 데이터 (원래는 DB에 저장해야 함)
-let announcements = [
-    { id: 1, title: '새로운 기능 업데이트', content: '이제 관리자 페이지에서 직접 공지사항을 관리할 수 있습니다.', createdAt: new Date() },
-    { id: 2, title: '시스템 점검 안내', content: '금일 자정부터 1시간 동안 시스템 점검이 있을 예정입니다.', createdAt: new Date() },
-];
-let nextAnnounceId = 3;
-
 // 🛡️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
 app.use((req, res, next) => {
     // 설정 변경 API(/api/admin/settings)를 제외한 모든 요청은 점검 시 503 차단
@@ -45,13 +32,18 @@ app.use((req, res, next) => {
 });
 
 // [API] 0. 로그인 (간단한 예시)
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
-    if (username === adminAccount.username && password === adminAccount.password) {
-        // 실제로는 JWT 토큰 등 발급
-        res.json({ success: true, message: '로그인 성공' });
-    } else {
-        res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+    try {
+        const [rows] = await pool.execute('SELECT * FROM admin_users WHERE username = ? AND password = ?', [username, password]);
+        if (rows.length > 0) {
+            // 실제로는 JWT 토큰 등 발급
+            res.json({ success: true, message: '로그인 성공' });
+        } else {
+            res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
+        }
+    } catch (err) {
+        res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
     }
 });
 
@@ -135,64 +127,73 @@ app.get('/api/admin/monitor-data', (req, res) => {
 });
 
 // [API] 5. 관리자 계정
-app.get('/api/admin/account', (req, res) => {
-    // 비밀번호는 제외하고 아이디만 전송
-    res.json({ success: true, username: adminAccount.username });
+app.get('/api/admin/account', async (req, res) => {
+    try {
+        const [rows] = await pool.execute('SELECT username FROM admin_users LIMIT 1');
+        if (rows.length > 0) res.json({ success: true, username: rows[0].username });
+        else res.json({ success: false, message: '계정 정보가 없습니다.' });
+    } catch (err) { res.status(500).json({ success: false }); }
 });
 
-app.put('/api/admin/account', (req, res) => {
+app.put('/api/admin/account', async (req, res) => {
     const { currentPassword, newUsername, newPassword } = req.body;
 
-    // 현재 비밀번호 확인
-    if (currentPassword !== adminAccount.password) {
-        return res.status(403).json({ success: false, message: '현재 비밀번호가 일치하지 않습니다.' });
+    try {
+        const [rows] = await pool.execute('SELECT * FROM admin_users LIMIT 1');
+        if (rows.length === 0) return res.status(404).json({ success: false, message: '관리자 계정을 찾을 수 없습니다.' });
+        
+        const admin = rows[0];
+        if (currentPassword !== admin.password) {
+            return res.status(403).json({ success: false, message: '현재 비밀번호가 일치하지 않습니다.' });
+        }
+
+        const updatedUsername = newUsername || admin.username;
+        const updatedPassword = newPassword || admin.password;
+
+        await pool.execute('UPDATE admin_users SET username = ?, password = ? WHERE id = ?', [updatedUsername, updatedPassword, admin.id]);
+        res.json({ success: true, message: '계정 정보가 성공적으로 변경되었습니다.' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: '계정 정보 변경 중 오류가 발생했습니다.' });
     }
-
-    // 새 정보로 업데이트
-    adminAccount.username = newUsername || adminAccount.username;
-    adminAccount.password = newPassword || adminAccount.password;
-
-    res.json({ success: true, message: '계정 정보가 성공적으로 변경되었습니다.' });
 });
 
 // [API] 6. 공지사항 관리
-app.get('/api/admin/announcements', (req, res) => {
-    res.json({ success: true, list: announcements.sort((a, b) => b.id - a.id) });
+app.get('/api/admin/announcements', async (req, res) => {
+    try {
+        // 프론트엔드가 createdAt 속성을 사용하므로 AS로 이름 매핑
+        const [rows] = await pool.execute('SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC');
+        res.json({ success: true, list: rows });
+    } catch (err) { res.status(500).json({ success: false }); }
 });
 
-app.post('/api/admin/announcements', (req, res) => {
+app.post('/api/admin/announcements', async (req, res) => {
     const { title, content } = req.body;
     if (!title || !content) {
         return res.status(400).json({ success: false, message: '제목과 내용을 모두 입력해주세요.' });
     }
-    const newAnnounce = { id: nextAnnounceId++, title, content, createdAt: new Date() };
-    announcements.push(newAnnounce);
-    res.json({ success: true, item: newAnnounce });
+    try {
+        await pool.execute('INSERT INTO announcements (title, content) VALUES (?, ?)', [title, content]);
+        res.json({ success: true, message: '등록 성공' });
+    } catch (err) { res.status(500).json({ success: false, message: '공지사항 등록 중 오류가 발생했습니다.' }); }
 });
 
-app.put('/api/admin/announcements/:id', (req, res) => {
+app.put('/api/admin/announcements/:id', async (req, res) => {
     const { id } = req.params;
     const { title, content } = req.body;
-    const index = announcements.findIndex(a => a.id == id);
-
-    if (index === -1) {
-        return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
-    }
-
-    announcements[index] = { ...announcements[index], title, content };
-    res.json({ success: true, item: announcements[index] });
+    try {
+        const [result] = await pool.execute('UPDATE announcements SET title = ?, content = ? WHERE id = ?', [title, content, id]);
+        if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false, message: '공지사항 수정 중 오류가 발생했습니다.' }); }
 });
 
-app.delete('/api/admin/announcements/:id', (req, res) => {
+app.delete('/api/admin/announcements/:id', async (req, res) => {
     const { id } = req.params;
-    const index = announcements.findIndex(a => a.id == id);
-
-    if (index === -1) {
-        return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
-    }
-
-    announcements.splice(index, 1);
-    res.json({ success: true, message: '공지사항이 삭제되었습니다.' });
+    try {
+        const [result] = await pool.execute('DELETE FROM announcements WHERE id = ?', [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
+        res.json({ success: true, message: '공지사항이 삭제되었습니다.' });
+    } catch (err) { res.status(500).json({ success: false, message: '공지사항 삭제 중 오류가 발생했습니다.' }); }
 });
 
 app.listen(4000, () => console.log('🚀 Admin Server: http://localhost:4000'));
