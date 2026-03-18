@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ] # main 또는 master 브랜치에 푸시될 때마다 실행
 
 jobs:
-  build:
+  build_and_push: # Job 이름을 더 명확하게 변경
     runs-on: ubuntu-latest
 
     steps:
