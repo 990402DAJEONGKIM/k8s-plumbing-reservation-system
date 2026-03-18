@@ -15,7 +15,7 @@ export default function StatusPage() {
     setIsMaintenance(false); // 검색 시 점검 상태 초기화
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${API_URL}/api/admin/reservations?search=${resNumber.trim()}`);
       if (res.status === 503) {
         setIsMaintenance(true);
