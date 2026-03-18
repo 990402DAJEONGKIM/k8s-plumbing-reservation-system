@@ -5,7 +5,7 @@ const getBaseUrl = () => {
     }
     // Client-side (브라우저)에서 실행될 때, 또는 INTERNAL_API_URL이 없을 때
     // NEXT_PUBLIC_API_URL은 빌드 시점에 주입되거나, 런타임 환경변수로 설정됩니다.
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"; // 로컬 개발 환경 fallback
+    return process.env.NEXT_PUBLIC_API_URL || ""; // 상대 경로 사용을 위해 빈 문자열로 변경
 };
 
 

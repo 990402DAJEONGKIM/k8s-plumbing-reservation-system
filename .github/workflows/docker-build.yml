@@ -28,6 +28,7 @@ jobs:
           file: ./app/backend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:latest
+          provenance: false # 💡 Docker Hub와 K8s의 SHA 해시값이 다르게 보이는 현상 방지
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:buildcache,mode=max
 
@@ -38,6 +39,7 @@ jobs:
           file: ./app/frontend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:latest
+          provenance: false # 💡 Docker Hub와 K8s의 SHA 해시값이 다르게 보이는 현상 방지
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
 

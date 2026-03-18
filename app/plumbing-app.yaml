@@ -43,7 +43,7 @@ kind: Deployment
 metadata:
   name: plumbing-backend
 spec:
-  replicas: 3 # 💡 백엔드 컨테이너 3개로 스케일 아웃!
+  replicas: 2 # 💡 백엔드 컨테이너 2개로 스케일 아웃!
   selector:
     matchLabels:
       app: plumbing-backend

@@ -9,7 +9,7 @@ import { fetcher } from '../../lib/api';
 
 export default function AdminDashboard() {
   // 💡 Cloud-Native: 하드코딩된 로컬 주소 대신 환경변수 사용 (기본값 fallback 처리)
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
   // 로그인 상태 관리
   const [isLoggedIn, setIsLoggedIn] = useState(false);
