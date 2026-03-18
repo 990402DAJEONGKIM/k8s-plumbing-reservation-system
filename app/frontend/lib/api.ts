@@ -1,10 +1,7 @@
 const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  // For local development
-  return 'http://localhost:4000';
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 };
+
 
 export const fetcher = async (path: string, options?: RequestInit) => {
   const url = `${getBaseUrl()}${path}`;

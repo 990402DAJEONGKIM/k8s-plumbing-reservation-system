@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X } from 'lucide-react';
-import { fetcher } from '../lib/api';
 import { useAnnouncements } from '../lib/hooks';
 
 export default function Home() {
@@ -19,12 +18,14 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const data = await fetcher('/api/reservations', {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${API_URL}/api/reservations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      setSubmittedNumber(data.resNumber);
+      const data = await res.json();
+      if (res.ok) setSubmittedNumber(data.resNumber);
     } catch (err) { alert("서버 연결 실패!"); }
   };
 

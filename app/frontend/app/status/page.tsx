@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Clock, Phone, Wrench, CheckCircle2, PackageCheck, Construction, RefreshCcw, Megaphone } from 'lucide-react';
-import { fetcher } from '../../lib/api';
 import { useAnnouncements } from '../../lib/hooks';
 
 export default function StatusPage() {
@@ -16,18 +15,20 @@ export default function StatusPage() {
     setIsMaintenance(false); // 검색 시 점검 상태 초기화
 
     try {
-      const result = await fetcher(`/api/admin/reservations?search=${resNumber.trim()}`);
-      if (result.success && result.list && result.list.length > 0) {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${API_URL}/api/admin/reservations?search=${resNumber.trim()}`);
+      if (res.status === 503) {
+        setIsMaintenance(true);
+        return;
+      }
+      const result = await res.json();
+      if (res.ok && result.success && result.list && result.list.length > 0) {
         setData(result.list[0]);
       } else {
         alert("일치하는 예약 번호가 없습니다. 번호를 다시 확인해주세요.");
         setData(null);
       }
     } catch (err: any) {
-      if (err.status === 503) {
-        setIsMaintenance(true);
-        return;
-      }
       alert("서버와 통신할 수 없습니다. 잠시 후 다시 시도해주세요.");
       setData(null);
     }
