@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { 
   ClipboardList, Calendar, Users, Activity, Settings, 
-  Search, HeartPulse, CheckCircle2, Truck, Wrench, History, 
+  Search, HeartPulse, CheckCircle2, Truck, Wrench, History, X,
   AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2
 } from 'lucide-react';
 import { fetcher } from '../../lib/api';
@@ -11,7 +11,7 @@ export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('시스템 모니터링');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
-  const [data, setData] = useState({ reservations: [], customers: [], announcements: [] });
+  const [data, setData] = useState({ reservations: [], customers: [], announcements: [], calendar: [] });
   const [sysStats, setSysStats] = useState({ cpu: '0%', mem: '0%', errCount: 0, logs: [] });
   // 설정 상태
   const [config, setConfig] = useState({ isMaintenance: false, notificationEnabled: true });
@@ -20,15 +20,24 @@ export default function AdminDashboard() {
   // 공지사항 관리 상태
   const [currentAnnounce, setCurrentAnnounce] = useState<{ id: number | null; title: string; content: string; }>({ id: null, title: '', content: '' });
 
+  // 달력 상태
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDateReservations, setSelectedDateReservations] = useState<any[]>([]);
+
   // 데이터 로딩
   const loadData = async () => {
     try {
+      const ts = Date.now(); // 💡 브라우저 캐시 우회를 위한 타임스탬프
       if (activeMenu === '예약 관리') {
-        const result = await fetcher(`/api/admin/reservations?status=${filter}&search=${encodeURIComponent(search)}`);
+        const result = await fetcher(`/api/admin/reservations?status=${filter}&search=${encodeURIComponent(search)}&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, reservations: result.list }));
       } else if (activeMenu === '고객 관리') {
-        const result = await fetcher(`/api/admin/customers?search=${encodeURIComponent(search)}`);
+        const result = await fetcher(`/api/admin/customers?search=${encodeURIComponent(search)}&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, customers: result.list }));
+      } else if (activeMenu === '일정 조회') {
+        const result = await fetcher(`/api/admin/calendar?_t=${ts}`);
+        if (result.success) setData(p => ({ ...p, calendar: result.list }));
       } else if (activeMenu === '설정') {
         const result = await fetcher(`/api/admin/settings`);
         if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
@@ -36,17 +45,31 @@ export default function AdminDashboard() {
         const accountResult = await fetcher(`/api/admin/account`);
         if (accountResult.success) setAdminUsername(accountResult.username);
       } else if (activeMenu === '공지사항 관리') {
-        const result = await fetcher(`/api/admin/announcements`);
+        const result = await fetcher(`/api/admin/announcements?_t=${ts}`);
         if (result.success) setData(p => ({ ...p, announcements: result.list }));
       }
     } catch (e) { console.error("Load Failed"); }
+  };
+
+  // 달력 날짜 클릭 시 상세 데이터 불러오기
+  const handleDateClick = async (dateStr: string) => {
+    setSelectedDate(dateStr);
+    try {
+      // 💡 fetcher 대신 완벽하게 캐시를 우회하는 네이티브 fetch 사용
+      const res = await fetch(`http://localhost:4000/api/admin/reservations?status=ALL&search=${encodeURIComponent(dateStr)}&_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache' }
+      });
+      const result = await res.json();
+      if (result.success) setSelectedDateReservations(result.list);
+    } catch (e) { console.error("Load Detail Failed"); }
   };
 
   // 실시간 모니터링 (2초 간격)
   useEffect(() => {
     const fetchMonitor = async () => {
       try {
-        const result = await fetcher('/api/admin/monitor-data');
+        const result = await fetcher(`/api/admin/monitor-data?_t=${Date.now()}`);
         if (result.success) setSysStats({ cpu: result.cpu, mem: result.mem, errCount: result.errCount, logs: result.logs });
       } catch (e) { console.error("Monitor Failed"); }
     };
@@ -190,11 +213,11 @@ export default function AdminDashboard() {
                </div>
              </div>
              <div className="grid gap-4">
-               {data.reservations.map((item: any) => {
+               {data.reservations.map((item: any, idx: number) => {
                  const isPast = item.reservation_datetime && new Date(item.reservation_datetime).getTime() < new Date().setHours(0, 0, 0, 0);
                  const isDelayed = isPast && item.status !== 'COMPLETED';
                  return (
-                 <div key={item.id} className={`p-6 rounded-[35px] border flex justify-between items-center shadow-sm hover:scale-[1.01] transition-all ${isDelayed ? 'bg-rose-50 border-rose-200' : 'bg-white'}`}>
+                <div key={`main-res-${idx}-${item.res_number}`} className={`p-6 rounded-[35px] border flex justify-between items-center shadow-sm hover:scale-[1.01] transition-all ${isDelayed ? 'bg-rose-50 border-rose-200' : 'bg-white'}`}>
                    <div className="flex gap-6 items-center text-left">
                      <div className={`p-4 rounded-2xl ${item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-500' : 'bg-indigo-50 text-indigo-500'}`}>
                        {item.status === 'COMPLETED' ? <CheckCircle2 size={24}/> : (item.status === 'ASSIGNED' ? <Truck size={24}/> : <Wrench size={24}/>)}
@@ -221,6 +244,117 @@ export default function AdminDashboard() {
                  );
                })}
              </div>
+           </div>
+          )}
+
+          {activeMenu === '일정 조회' && (
+            <div className="flex gap-6 items-start animate-in fade-in relative">
+              <div className={`transition-all duration-500 ease-in-out ${selectedDate ? 'w-2/3' : 'w-full'} space-y-6`}>
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase">Calendar</h2>
+                <div className="flex items-center gap-3">
+                  {/* 💡 예약이 있는 달로 바로 이동하는 편의 기능 추가 */}
+                  {data.calendar && data.calendar.length > 0 && (
+                    <select 
+                      onChange={(e) => e.target.value && setCurrentDate(new Date(`${e.target.value}-01`))}
+                      className="bg-indigo-50 border-none text-sm font-black text-indigo-600 px-4 py-3 rounded-2xl shadow-sm outline-none cursor-pointer"
+                    >
+                      <option value="">📂 예약된 달 확인하기</option>
+                      {Array.from(new Set(data.calendar.map((c: any) => c.date.substring(0, 7)))).sort().map((ym: any) => (
+                        <option key={ym} value={ym}>{ym.split('-')[0]}년 {ym.split('-')[1]}월</option>
+                      ))}
+                    </select>
+                  )}
+                  <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-3xl shadow-sm border font-black text-slate-700">
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="hover:text-indigo-600 transition">&lt;</button>
+                    <span className="w-32 text-center text-lg">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</span>
+                    <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="hover:text-indigo-600 transition">&gt;</button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white p-8 rounded-[40px] border shadow-sm">
+                <div className="grid grid-cols-7 gap-2 text-center mb-4">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(wd => (
+                    <div key={wd} className="font-black text-slate-400 text-xs uppercase tracking-widest">{wd}</div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-2">
+                  {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay() }).map((_, i) => (
+                    <div key={`blank-${i}`} className="min-h-[120px] bg-slate-50/50 rounded-3xl border border-transparent"></div>
+                  ))}
+                  {Array.from({ length: new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                    const d = i + 1;
+                    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const dayData = data.calendar.find((c: any) => c.date === dateStr);
+                    
+                    const now = new Date();
+                    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                    const isToday = dateStr === todayStr;
+                    
+                    return (
+                      <div 
+                        key={d} 
+                        onClick={() => {
+                          if (dayData) {
+                            handleDateClick(dateStr);
+                          }
+                        }}
+                        className={`min-h-[120px] p-4 rounded-3xl border transition-all flex flex-col relative
+                          ${dayData ? 'cursor-pointer hover:border-indigo-500 hover:shadow-lg bg-white border-slate-200' : 'bg-slate-50/50 border-transparent'}
+                          ${selectedDate === dateStr ? 'ring-4 ring-indigo-500 ring-offset-2 shadow-xl border-indigo-500 scale-105 z-10' : isToday ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}
+                        `}
+                      >
+                        <span className={`font-black text-sm mb-2 ${isToday ? 'text-indigo-600' : 'text-slate-700'}`}>{d}</span>
+                        {dayData && (
+                          <div className="w-full flex flex-col gap-1.5 mt-auto pt-2">
+                            <div className="flex flex-col gap-1">
+                              {dayData.details?.split('||').map((detail: string, idx: number) => (
+                                <span key={idx} className="bg-indigo-100/70 text-indigo-700 text-[10px] px-1.5 py-1 rounded border border-indigo-200/50 font-bold truncate text-left w-full">
+                                  {detail}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="w-full bg-indigo-50 text-indigo-600 font-black text-[10px] p-2 rounded-xl flex items-center justify-between">
+                              <span>예약</span>
+                              <span className="text-sm bg-white px-2 py-0.5 rounded-lg shadow-sm">{dayData.count}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            {/* 사이드 패널 (우측 상세 예약 리스트) */}
+            {selectedDate && (
+              <div className="w-1/3 bg-white border shadow-xl rounded-[40px] p-6 sticky top-0 flex flex-col animate-in slide-in-from-right-8 duration-500" style={{ height: 'calc(100vh - 120px)' }}>
+                <div className="flex justify-between items-center mb-6 px-2">
+                  <h3 className="text-2xl font-black italic text-slate-800">
+                    <span className="text-indigo-600">{selectedDate.split('-')[2]}일</span> 예약
+                  </h3>
+                  <button onClick={() => setSelectedDate(null)} className="p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 rounded-full transition-colors text-slate-400"><X size={20}/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-4 px-2 pb-4 scrollbar-hide">
+                  {selectedDateReservations.length > 0 ? selectedDateReservations.map((res, idx) => (
+                    <div key={`panel-res-${idx}-${res.res_number}`} className="p-5 rounded-3xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-md transition-all text-left">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="font-black text-indigo-600 bg-indigo-100/50 px-3 py-1 rounded-xl text-sm">
+                          {res.reservation_datetime ? new Date(res.reservation_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '시간미정'}
+                        </span>
+                        <span className={`text-[10px] px-3 py-1 rounded-full font-black tracking-widest uppercase ${res.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-600' : res.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-600' : res.status === 'REPAIRING' ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'}`}>{res.status}</span>
+                      </div>
+                      <p className="font-black text-lg text-slate-800">{res.customer_name} 님</p>
+                      <p className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2"><span className="text-indigo-500">{res.issue_type}</span> <span className="text-slate-300">|</span> <span className="truncate">{res.address}</span></p>
+                    </div>
+                  )) : (
+                    <div className="py-20 text-center font-bold text-slate-300 italic border-2 border-dashed rounded-3xl border-slate-200">예약 내역이 없습니다.</div>
+                  )}
+                </div>
+              </div>
+            )}
            </div>
           )}
 

@@ -63,8 +63,8 @@ app.get('/api/admin/reservations', async (req, res) => {
         const params = [];
         if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
         if (search) {
-            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ? OR DATE_FORMAT(reservation_datetime, "%Y-%m-%d") LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
         }
         sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
         const [rows] = await pool.execute(sql, params);
@@ -78,6 +78,23 @@ app.patch('/api/admin/reservations/:id', async (req, res) => {
     try {
         await pool.execute('UPDATE reservations SET status = ? WHERE id = ?', [status.toUpperCase(), id]);
         res.json({ success: true });
+    } catch (err) { res.status(500).json({ success: false }); }
+});
+
+// [API] 1.5 일정 조회 (달력 데이터 집계)
+app.get('/api/admin/calendar', async (req, res) => {
+    try {
+        const sql = `
+            SELECT DATE_FORMAT(reservation_datetime, '%Y-%m-%d') as date, 
+                   COUNT(*) as count,
+                   GROUP_CONCAT(CONCAT(DATE_FORMAT(reservation_datetime, '%H:%i'), ' ', customer_name, ' (', issue_type, ')') ORDER BY reservation_datetime ASC SEPARATOR '||') as details
+            FROM reservations 
+            WHERE reservation_datetime IS NOT NULL 
+            GROUP BY DATE_FORMAT(reservation_datetime, '%Y-%m-%d')
+            ORDER BY date ASC
+        `;
+        const [rows] = await pool.execute(sql);
+        res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
 });
 
