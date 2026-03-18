@@ -72,6 +72,10 @@ jobs:
       - name: Deploy to Kubernetes
         run: |
           set -e # 이 스텝에서 명령 실패 시 즉시 종료
+          
+          echo "K8s 매니페스트(YAML) 최신 설정 적용 중..."
+          kubectl apply -f app/plumbing-app.yaml
+
           echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-backend
