@@ -5,8 +5,8 @@ on:
     branches: [ "main", "master" ] # main 또는 master 브랜치에 푸시될 때마다 실행
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build_and_push: # Job 이름을 더 명확하게 변경
+    runs-on: self-hosted
 
     steps:
       - name: Checkout repository
@@ -44,7 +44,11 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
 
-      # Kubeconfig 설정은 kubectl 명령 이전에 와야 합니다.
+  deploy: # 새로운 배포 Job 추가
+    runs-on: self-hosted # 💡 self-hosted runner 사용
+    needs: build_and_push # build_and_push Job이 성공해야 실행
+
+    steps:
       - name: Set up Kubeconfig
         uses: azure/setup-kubectl@v3
         with:
@@ -60,13 +64,19 @@ jobs:
           echo "Kubeconfig 설정 완료. kubectl 연결 및 권한 확인 중..."
           kubectl version --client # kubectl 클라이언트 버전 확인
           kubectl get deployments -n default # default 네임스페이스의 디플로이먼트 목록을 가져와 연결 및 권한 확인
+          # 클러스터 연결 및 권한 확인 (실패 시 워크플로우 중단)
+          kubectl version --client # 클라이언트 버전 확인
+          kubectl get deployments -n default # default 네임스페이스의 디플로이먼트 목록을 가져와 연결 및 권한 확인
+          echo "Kubernetes 클러스터 연결 및 권한 확인 성공."
 
       - name: Deploy to Kubernetes
         run: |
           set -e # 이 스텝에서 명령 실패 시 즉시 종료
+          echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-backend
           echo "plumbing-frontend 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-frontend
           echo "plumbing-frontend 롤아웃 완료 대기 중..."
           kubectl rollout status deployment plumbing-frontend
+          echo "배포 완료!"

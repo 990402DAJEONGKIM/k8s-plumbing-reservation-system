@@ -35,11 +35,16 @@ services:
   frontend:
     build: ./frontend
     container_name: plumbing-frontend
+    # Docker Compose 빌드 시 NEXT_PUBLIC_API_URL을 주입하여 클라이언트 번들에 포함
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000 # 브라우저에서 접근할 주소 (호스트 기준)
     ports:
       - "3000:3000"
     environment:
-      # 💡 프론트엔드 컨테이너가 바라볼 백엔드 외부 진입점 주소
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+      # 서버(프론트엔드 컨테이너)에서 백엔드로 접근할 주소 (Docker 네트워크 기준)
+      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:4000}
     depends_on:
       - backend
     networks:
