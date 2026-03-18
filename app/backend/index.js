@@ -47,6 +47,32 @@ app.post('/api/admin/login', async (req, res) => {
     }
 });
 
+// [API] 0.5 사용자 예약 접수 (Front -> Backend)
+app.post('/api/reservations', async (req, res) => {
+    const { name, phone, address, issueType } = req.body;
+    
+    // 예약 번호 생성 (예: RES-20240101-1234)
+    const date = new Date();
+    const dateString = date.getFullYear() + String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0');
+    const randomNum = Math.floor(1000 + Math.random() * 9000); // 4자리 난수
+    const resNumber = `RES-${dateString}-${randomNum}`;
+
+    try {
+        // 1. 예약 정보 저장
+        await pool.execute(
+            'INSERT INTO reservations (res_number, customer_name, phone_number, address, issue_type) VALUES (?, ?, ?, ?, ?)',
+            [resNumber, name, phone, address, issueType]
+        );
+        // 2. 고객 목록에도 저장 (이미 같은 전화번호가 있으면 무시)
+        await pool.execute(
+            'INSERT INTO customers (customer_name, phone_number, address) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM customers WHERE phone_number = ?)',
+            [name, phone, address, phone]
+        );
+
+        res.json({ success: true, resNumber });
+    } catch (err) { res.status(500).json({ success: false, message: '예약 접수 중 오류가 발생했습니다.' }); }
+});
+
 // [API] 1. 예약 관리 (조회 페이지도 이 API를 사용함)
 app.get('/api/admin/reservations', async (req, res) => {
     const { status, search } = req.query;
