@@ -2,7 +2,7 @@ name: Build and Push Docker Images
 
 on:
   push:
-    branches: [ "main", "master" ] # main 또는 master 브랜치에 푸시될 때마다 실행
+    branches: [ "main" ] # main 브랜치에 푸시될 때마다 실행
 
 jobs:
   build:
@@ -43,3 +43,26 @@ jobs:
             NEXT_PUBLIC_API_URL=http://10.0.101.100
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl rollout restart deployment plumbing-backend
+          kubectl rollout restart deployment plumbing-frontend
+          kubectl rollout status deployment plumbing-frontend
+
+      - name: Set up Kubeconfig
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+        id: install
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl rollout restart deployment plumbing-backend
+          kubectl rollout restart deployment plumbing-frontend
+          kubectl rollout status deployment plumbing-frontend

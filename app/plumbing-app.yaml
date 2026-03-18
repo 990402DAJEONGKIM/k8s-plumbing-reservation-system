@@ -1,0 +1,125 @@
+### 1. Database (MySQL) ###
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: plumbing-db
+  template:
+    metadata:
+      labels:
+        app: plumbing-db
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "your_password"
+            - name: MYSQL_DATABASE
+              value: "plumbing_db"
+          ports:
+            - containerPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumbing-db-svc
+spec:
+  selector:
+    app: plumbing-db
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+
+---
+### 2. Backend (Node.js) ###
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-backend
+spec:
+  replicas: 2 # 💡 백엔드 컨테이너 2개로 스케일 아웃!
+  selector:
+    matchLabels:
+      app: plumbing-backend
+  template:
+    metadata:
+      labels:
+        app: plumbing-backend
+    spec:
+      containers:
+        - name: backend
+          # 🚨 본인의 Docker Hub ID로 변경하세요!
+          image: dajeongkim/plumbing-backend:latest
+          imagePullPolicy: Always # 항상 최신 이미지를 가져오도록 설정
+          ports:
+            - containerPort: 4000
+          env:
+            # 쿠버네티스 내부에서는 DB 서비스 이름(plumbing-db-svc)으로 통신합니다.
+            - name: DB_HOST
+              value: "plumbing-db-svc" 
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USER
+              value: "root"
+            - name: DB_PASSWORD
+              value: "your_password"
+            - name: DB_NAME
+              value: "plumbing_db"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumbing-backend-svc
+spec:
+  type: NodePort # 외부에서 백엔드 API에 접속하기 위해 오픈
+  selector:
+    app: plumbing-backend
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+      nodePort: 30040 # 외부 접속 포트: 30040
+
+---
+### 3. Frontend (Next.js) ###
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-frontend
+spec:
+  replicas: 2 # 💡 프론트엔드 컨테이너 2개로 스케일 아웃!
+  selector:
+    matchLabels:
+      app: plumbing-frontend
+  template:
+    metadata:
+      labels:
+        app: plumbing-frontend
+    spec:
+      containers:
+        - name: frontend
+          # 🚨 본인의 Docker Hub ID로 변경하세요!
+          image: dajeongkim/plumbing-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plumbing-frontend-svc
+spec:
+  type: NodePort
+  selector:
+    app: plumbing-frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30030 # 외부 접속 포트: 30030
