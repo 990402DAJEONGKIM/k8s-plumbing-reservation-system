@@ -1,0 +1,82 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [ "main", "master" ] # main 또는 master 브랜치에 푸시될 때마다 실행
+
+jobs:
+  build_and_push: # Job 이름을 더 명확하게 변경
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/backend
+          file: ./app/backend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:latest
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-backend:buildcache,mode=max
+
+      - name: Build and push Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/frontend
+          file: ./app/frontend/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:latest
+          # 💡 K8s Ingress 진입점(VIP)을 프론트엔드 빌드 타임에 주입
+          build-args: |
+            NEXT_PUBLIC_API_URL=http://10.0.101.100
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
+
+  deploy: # 새로운 배포 Job 추가
+    runs-on: self-hosted # 💡 self-hosted runner 사용
+    needs: build_and_push # build_and_push Job이 성공해야 실행
+
+    steps:
+      - name: Set up Kubeconfig
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+        id: install
+
+      - name: Configure Kubeconfig
+        run: |
+          set -e # 이 스텝에서 명령 실패 시 즉시 종료
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+          
+          echo "Kubeconfig 설정 완료. kubectl 연결 및 권한 확인 중..." # kubectl 클라이언트 버전 확인
+          kubectl version --client
+          # default 네임스페이스의 디플로이먼트 목록을 가져와 연결 및 권한 확인
+          # 만약 다른 네임스페이스를 사용한다면 -n 옵션을 변경하세요.
+          kubectl get deployments -n default
+          echo "Kubernetes 클러스터 연결 및 권한 확인 성공."
+
+      - name: Deploy to Kubernetes
+        run: |
+          set -e # 이 스텝에서 명령 실패 시 즉시 종료
+          echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
+          echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
+          kubectl rollout restart deployment plumbing-backend
+          echo "plumbing-frontend 디플로이먼트 롤아웃 재시작 시작..."
+          kubectl rollout restart deployment plumbing-frontend
+          echo "plumbing-frontend 롤아웃 완료 대기 중..."
+          kubectl rollout status deployment plumbing-frontend
+          echo "배포 완료!"

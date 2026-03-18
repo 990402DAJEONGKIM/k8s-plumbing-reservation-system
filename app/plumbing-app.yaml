@@ -77,14 +77,12 @@ kind: Service
 metadata:
   name: plumbing-backend-svc
 spec:
-  type: NodePort # 외부에서 백엔드 API에 접속하기 위해 오픈
   selector:
     app: plumbing-backend
   ports:
     - protocol: TCP
       port: 4000
       targetPort: 4000
-      nodePort: 30040 # 외부 접속 포트: 30040
 
 ---
 ### 3. Frontend (Next.js) ###
@@ -119,11 +117,35 @@ kind: Service
 metadata:
   name: plumbing-frontend-svc
 spec:
-  type: NodePort
   selector:
     app: plumbing-frontend
   ports:
     - protocol: TCP
       port: 3000
       targetPort: 3000
-      nodePort: 30030 # 외부 접속 포트: 30030
+
+---
+### 4. Ingress (프론트/백엔드 단일 진입점) ###
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: plumbing-ingress
+spec:
+  ingressClassName: nginx # Nginx Ingress Controller를 사용하는 경우
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-backend-svc
+                port:
+                  number: 4000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-frontend-svc
+                port:
+                  number: 3000
