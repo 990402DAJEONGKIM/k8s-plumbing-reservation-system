@@ -18,7 +18,7 @@ spec:
           image: mysql:8.0
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: "your_password"
+              value: "8850"
             - name: MYSQL_DATABASE
               value: "plumbing_db"
           ports:
@@ -68,7 +68,7 @@ spec:
             - name: DB_USER
               value: "root"
             - name: DB_PASSWORD
-              value: "your_password"
+              value: "8850"
             - name: DB_NAME
               value: "plumbing_db"
 ---
@@ -109,6 +109,10 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
+          env:
+            # 프론트엔드 컨테이너 내부에서 백엔드 서비스로 접근할 주소 (Kubernetes 내부 서비스 이름)
+            - name: INTERNAL_API_URL
+              value: "http://plumbing-backend-svc:4000"
 ---
 apiVersion: v1
 kind: Service
