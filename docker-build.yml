@@ -43,11 +43,6 @@ jobs:
             NEXT_PUBLIC_API_URL=http://10.0.101.100
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl rollout restart deployment plumbing-backend
-          kubectl rollout restart deployment plumbing-frontend
-          kubectl rollout status deployment plumbing-frontend
 
       - name: Set up Kubeconfig
         uses: azure/setup-kubectl@v3
