@@ -57,11 +57,14 @@ app.post('/api/reservations', async (req, res) => {
     const randomNum = Math.floor(1000 + Math.random() * 9000); // 4자리 난수
     const resNumber = `RES-${dateString}-${randomNum}`;
 
+    // 💡 KST로 입력된 날짜를 서버(UTC) 기준 Date 객체로 올바르게 파싱 (타임존 +9시간 보정)
+    const resDate = reservation_datetime ? new Date(reservation_datetime + '+09:00') : null;
+
     try {
         // 1. 예약 정보 저장
         await pool.execute(
             'INSERT INTO reservations (res_number, customer_name, phone_number, address, issue_type, reservation_datetime) VALUES (?, ?, ?, ?, ?, ?)',
-            [resNumber, name, phone, address, issueType, reservation_datetime || null]
+            [resNumber, name, phone, address, issueType, resDate]
         );
         // 2. 고객 목록에도 저장 (이미 같은 전화번호가 있으면 무시)
         await pool.execute(
@@ -81,7 +84,8 @@ app.get('/api/admin/reservations', async (req, res) => {
         const params = [];
         if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
         if (search) {
-            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ? OR DATE_FORMAT(reservation_datetime, "%Y-%m-%d") LIKE ?)';
+            // 💡 검색 시 DB에 저장된 UTC 시간을 KST로 포맷팅하여 매칭
+            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ? OR DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), "%Y-%m-%d") LIKE ?)';
             params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
         }
         sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
@@ -102,13 +106,14 @@ app.patch('/api/admin/reservations/:id', async (req, res) => {
 // [API] 1.5 일정 조회 (달력 데이터 집계)
 app.get('/api/admin/calendar', async (req, res) => {
     try {
+        // 💡 DB에 저장된 UTC 시간을 한국 시간(KST, +9시간)으로 보정하여 달력 그룹핑
         const sql = `
-            SELECT DATE_FORMAT(reservation_datetime, '%Y-%m-%d') as date, 
+            SELECT DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d') as date, 
                    COUNT(*) as count,
-                   GROUP_CONCAT(CONCAT(DATE_FORMAT(reservation_datetime, '%H:%i'), ' ', customer_name, ' (', issue_type, ')') ORDER BY reservation_datetime ASC SEPARATOR '||') as details
+                   GROUP_CONCAT(CONCAT(DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%H:%i'), ' ', customer_name, ' (', issue_type, ')') ORDER BY reservation_datetime ASC SEPARATOR '||') as details
             FROM reservations 
             WHERE reservation_datetime IS NOT NULL 
-            GROUP BY DATE_FORMAT(reservation_datetime, '%Y-%m-%d')
+            GROUP BY DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d')
             ORDER BY date ASC
         `;
         const [rows] = await pool.execute(sql);
