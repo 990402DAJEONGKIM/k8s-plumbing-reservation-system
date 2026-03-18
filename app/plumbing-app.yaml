@@ -43,7 +43,7 @@ kind: Deployment
 metadata:
   name: plumbing-backend
 spec:
-  replicas: 2 # 💡 백엔드 컨테이너 2개로 스케일 아웃!
+  replicas: 3 # 💡 백엔드 컨테이너 3개로 스케일 아웃!
   selector:
     matchLabels:
       app: plumbing-backend
@@ -133,7 +133,8 @@ metadata:
 spec:
   ingressClassName: nginx # Nginx Ingress Controller를 사용하는 경우
   rules:
-    - http:
+    - host: www.plumbing.local
+      http:
         paths:
           - path: /api
             pathType: Prefix
