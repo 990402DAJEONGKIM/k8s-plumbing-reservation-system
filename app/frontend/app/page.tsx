@@ -66,7 +66,7 @@ export default function Home() {
         <div className="absolute inset-0 opacity-40 bg-[url('https://images.pexels.com/photos/2310904/pexels-photo-2310904.jpeg?auto=compress&cs=tinysrgb&w=1600')] bg-cover bg-center"></div>
         <div className="absolute inset-0 bg-gradient-to-b from-[#2b1c6d]/80 to-[#2b1c6d]/90"></div>
         <div className="relative z-10 max-w-5xl mx-auto px-4 text-center space-y-8">
-          <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter drop-shadow-2xl">THE PLUMBING <span className="text-red-500">EXPERTS</span></h1>
+          <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter drop-shadow-2xl">THE PLUMBING <span className="text-red-500">EXPERTS (CI/CD TEST)</span></h1>
           <div className="flex flex-col md:flex-row justify-center gap-4">
             <a href="#booking" className="bg-red-600 text-white px-10 py-5 rounded-sm font-black text-2xl no-underline inline-flex items-center justify-center gap-3 shadow-2xl">SCHEDULE ONLINE <ChevronRight size={28} /></a>
             <a href="/status" className="bg-transparent border-2 border-white text-white px-10 py-5 rounded-sm font-black text-2xl no-underline hover:bg-white hover:text-[#2b1c6d] inline-flex items-center justify-center gap-3">TRACK STATUS <Search size={28} /></a>

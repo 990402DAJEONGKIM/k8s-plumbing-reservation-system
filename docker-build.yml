@@ -40,7 +40,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:latest
           # 💡 K8s Ingress 진입점(VIP)을 프론트엔드 빌드 타임에 주입
           build-args: |
-            NEXT_PUBLIC_API_URL=http://10.0.101.100:30040
+            NEXT_PUBLIC_API_URL=http://10.0.101.100
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
 
