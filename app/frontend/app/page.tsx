@@ -1,40 +1,30 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X } from 'lucide-react';
+import { fetcher } from '../lib/api';
+import { useAnnouncements } from '../lib/hooks';
 
 export default function Home() {
   const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수' });
   const [submittedNumber, setSubmittedNumber] = useState('');
-  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [showPopup, setShowPopup] = useState(false);
+  const announcements = useAnnouncements();
 
   useEffect(() => {
-    const fetchAnnouncements = async () => {
-      try {
-        const res = await fetch('http://localhost:4000/api/admin/announcements');
-        const data = await res.json();
-        if (data.success && data.list.length > 0) {
-          // 가장 최신 공지 2개만 가져오기
-          setAnnouncements(data.list.slice(0, 2));
-          setShowPopup(true); // 공지 있으면 팝업 표시
-        }
-      } catch (err) {
-        console.error("공지사항 로드 실패:", err);
-      }
-    };
-    fetchAnnouncements();
-  }, []);
+    if (announcements.length > 0) {
+      setShowPopup(true);
+    }
+  }, [announcements]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:4000/api/v1/reservations', {
+      const data = await fetcher('/api/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (res.ok) setSubmittedNumber(data.resNumber);
+      setSubmittedNumber(data.resNumber);
     } catch (err) { alert("서버 연결 실패!"); }
   };
 
@@ -44,7 +34,7 @@ export default function Home() {
       {/* 최상단 공지사항 팝업 배너 컨테이너 */}
       {showPopup && announcements.length > 0 && (
         <div className="bg-red-600 text-white p-4 text-center relative animate-in slide-in-from-top duration-500 space-y-2">
-          {announcements.map((announcement) => (
+          {announcements.slice(0, 2).map((announcement) => (
             <p key={announcement.id} className="font-bold">
               <Megaphone size={16} className="inline-block mr-2" />
               <span className="font-black italic mr-2">[{announcement.title}]</span>

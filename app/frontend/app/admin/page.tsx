@@ -5,6 +5,7 @@ import {
   Search, HeartPulse, CheckCircle2, Truck, Wrench, History, 
   AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2
 } from 'lucide-react';
+import { fetcher } from '../../lib/api';
 
 export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('시스템 모니터링');
@@ -21,27 +22,21 @@ export default function AdminDashboard() {
 
   // 데이터 로딩
   const loadData = async () => {
-    const baseUrl = 'http://localhost:4000/api/admin';
     try {
       if (activeMenu === '예약 관리') {
-        const res = await fetch(`${baseUrl}/reservations?status=${filter}&search=${search}`);
-        const result = await res.json();
+        const result = await fetcher(`/api/admin/reservations?status=${filter}&search=${encodeURIComponent(search)}`);
         if (result.success) setData(p => ({ ...p, reservations: result.list }));
       } else if (activeMenu === '고객 관리') {
-        const res = await fetch(`${baseUrl}/customers?search=${search}`);
-        const result = await res.json();
+        const result = await fetcher(`/api/admin/customers?search=${encodeURIComponent(search)}`);
         if (result.success) setData(p => ({ ...p, customers: result.list }));
       } else if (activeMenu === '설정') {
-        const res = await fetch(`${baseUrl}/settings`);
-        const result = await res.json();
+        const result = await fetcher(`/api/admin/settings`);
         if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
         
-        const accountRes = await fetch(`${baseUrl}/account`);
-        const accountResult = await accountRes.json();
+        const accountResult = await fetcher(`/api/admin/account`);
         if (accountResult.success) setAdminUsername(accountResult.username);
       } else if (activeMenu === '공지사항 관리') {
-        const res = await fetch(`${baseUrl}/announcements`);
-        const result = await res.json();
+        const result = await fetcher(`/api/admin/announcements`);
         if (result.success) setData(p => ({ ...p, announcements: result.list }));
       }
     } catch (e) { console.error("Load Failed"); }
@@ -51,8 +46,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchMonitor = async () => {
       try {
-        const res = await fetch('http://localhost:4000/api/admin/monitor-data');
-        const result = await res.json();
+        const result = await fetcher('/api/admin/monitor-data');
         if (result.success) setSysStats({ cpu: result.cpu, mem: result.mem, errCount: result.errCount, logs: result.logs });
       } catch (e) { console.error("Monitor Failed"); }
     };
@@ -65,7 +59,7 @@ export default function AdminDashboard() {
 
   const changeStatus = async (id: number, status: string) => {
     try {
-      await fetch(`http://localhost:4000/api/admin/reservations/${id}`, {
+      await fetcher(`/api/admin/reservations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
@@ -77,12 +71,11 @@ export default function AdminDashboard() {
   // 설정 제어 함수
   const toggleConfig = async (type: string) => {
     try {
-      const res = await fetch('http://localhost:4000/api/admin/settings/toggle', {
+      const result = await fetcher('/api/admin/settings/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type })
       });
-      const result = await res.json();
       if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
     } catch (e) { console.error("Toggle Failed"); }
   };
@@ -100,60 +93,48 @@ export default function AdminDashboard() {
     }
 
     try {
-      const res = await fetch('http://localhost:4000/api/admin/account', {
+      const result = await fetcher('/api/admin/account', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newUsername, newPassword })
       });
 
-      const result = await res.json();
-      if (res.ok) {
+      if (result) {
         alert('계정 정보가 성공적으로 변경되었습니다.');
         loadData(); // 사용자 이름 등 최신 정보 다시 로드
         e.currentTarget.reset();
-      } else {
-        alert(`오류: ${result.message}`);
       }
-    } catch (err) {
-      alert('계정 정보 변경 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      alert(`오류: ${err.info.message}`);
     }
   };
 
   const handleAnnounceSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const { id, title, content } = currentAnnounce;
-    const url = id ? `http://localhost:4000/api/admin/announcements/${id}` : 'http://localhost:4000/api/admin/announcements';
+    const url = id ? `/api/admin/announcements/${id}` : '/api/admin/announcements';
     const method = id ? 'PUT' : 'POST';
 
     try {
-      const res = await fetch(url, {
+      await fetcher(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content })
       });
-      if (res.ok) {
-        alert(`공지사항이 성공적으로 ${id ? '수정' : '등록'}되었습니다.`);
-        loadData();
-        setCurrentAnnounce({ id: null, title: '', content: '' });
-      } else {
-        const result = await res.json();
-        alert(`오류: ${result.message}`);
-      }
-    } catch (err) {
-      alert('공지사항 처리 중 오류가 발생했습니다.');
+      alert(`공지사항이 성공적으로 ${id ? '수정' : '등록'}되었습니다.`);
+      loadData();
+      setCurrentAnnounce({ id: null, title: '', content: '' });
+    } catch (err: any) {
+      alert(`오류: ${err.info.message}`);
     }
   };
 
   const deleteAnnounce = async (id: number) => {
     if (confirm('정말로 이 공지사항을 삭제하시겠습니까?')) {
       try {
-        const res = await fetch(`http://localhost:4000/api/admin/announcements/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          alert('공지사항이 삭제되었습니다.');
-          loadData();
-        } else {
-          alert('삭제 실패');
-        }
+        await fetcher(`/api/admin/announcements/${id}`, { method: 'DELETE' });
+        alert('공지사항이 삭제되었습니다.');
+        loadData();
       } catch (err) {
         alert('삭제 처리 중 오류가 발생했습니다.');
       }
@@ -209,14 +190,24 @@ export default function AdminDashboard() {
                </div>
              </div>
              <div className="grid gap-4">
-               {data.reservations.map((item: any) => (
-                 <div key={item.id} className="bg-white p-6 rounded-[35px] border flex justify-between items-center shadow-sm hover:scale-[1.01] transition-all">
+               {data.reservations.map((item: any) => {
+                 const isPast = item.reservation_datetime && new Date(item.reservation_datetime).getTime() < new Date().setHours(0, 0, 0, 0);
+                 const isDelayed = isPast && item.status !== 'COMPLETED';
+                 return (
+                 <div key={item.id} className={`p-6 rounded-[35px] border flex justify-between items-center shadow-sm hover:scale-[1.01] transition-all ${isDelayed ? 'bg-rose-50 border-rose-200' : 'bg-white'}`}>
                    <div className="flex gap-6 items-center text-left">
                      <div className={`p-4 rounded-2xl ${item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-500' : 'bg-indigo-50 text-indigo-500'}`}>
                        {item.status === 'COMPLETED' ? <CheckCircle2 size={24}/> : (item.status === 'ASSIGNED' ? <Truck size={24}/> : <Wrench size={24}/>)}
                      </div>
                      <div>
-                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.res_number}</p>
+                       <div className="flex items-center gap-2 mb-1">
+                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.res_number}</p>
+                         {item.reservation_datetime && (
+                           <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-black tracking-widest">
+                             예약일: {new Date(item.reservation_datetime).toLocaleDateString()}
+                           </span>
+                         )}
+                       </div>
                        <h3 className="text-xl font-black italic text-slate-800">{item.customer_name} 님</h3>
                        <p className="text-sm text-slate-500 font-bold">{item.issue_type} | {item.address}</p>
                      </div>
@@ -227,7 +218,8 @@ export default function AdminDashboard() {
                      <button onClick={() => changeStatus(item.id, 'COMPLETED')} className="px-4 py-2 bg-slate-50 text-slate-600 text-[11px] font-black rounded-xl hover:bg-emerald-500 hover:text-white transition">완료</button>
                    </div>
                  </div>
-               ))}
+                 );
+               })}
              </div>
            </div>
           )}
@@ -238,15 +230,16 @@ export default function AdminDashboard() {
              <div className="bg-white rounded-[40px] border shadow-sm overflow-hidden text-left">
                <table className="w-full text-left font-black italic">
                  <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase text-slate-400 tracking-widest">
-                   <tr><th className="p-6 font-black">고객 / 연락처</th><th className="p-6 font-black">주소</th><th className="p-6 text-center font-black">방문 횟수</th><th className="p-6 text-right font-black">관리</th></tr>
+                   <tr><th className="p-6 font-black">고객 / 연락처</th><th className="p-6 font-black">주소</th><th className="p-6 text-center font-black">최근 예약일</th><th className="p-6 text-center font-black">방문 횟수</th><th className="p-6 text-right font-black">관리</th></tr>
                  </thead>
                  <tbody className="divide-y divide-slate-50">
                    {data.customers.map((cust: any, idx) => (
                      <tr key={idx} className="hover:bg-slate-50 transition">
-                       <td className="p-6 font-black italic"><p className="text-lg text-slate-800">{cust.customer_name} 님</p><p className="text-xs text-slate-400">{cust.phone_number}</p></td>
+                       <td className="p-6 font-black italic"><p className="text-lg text-slate-800">{cust.customer_name} 님 {cust.visit_count >= 3 && <span title="단골 고객">⭐</span>}</p><p className="text-xs text-slate-400">{cust.phone_number}</p></td>
                        <td className="p-6 text-sm text-slate-500 font-bold max-w-[250px] truncate">{cust.address || "정보 없음"}</td>
+                       <td className="p-6 text-center text-sm text-slate-500 font-bold">{cust.last_visit_date ? new Date(cust.last_visit_date).toLocaleDateString() : '-'}</td>
                        <td className="p-6 text-center"><span className="bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full text-xs font-black">{cust.visit_count}회</span></td>
-                       <td className="p-6 text-right"><button onClick={() => {setSearch(cust.customer_name); setActiveMenu('예약 관리');}} className="text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl text-xs font-black italic flex items-center gap-2 ml-auto transition"><History size={14}/> 히스토리</button></td>
+                      <td className="p-6 text-right"><button onClick={() => {setSearch(cust.customer_name); setFilter('ALL'); setActiveMenu('예약 관리');}} className="text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl text-xs font-black italic flex items-center gap-2 ml-auto transition"><History size={14}/> 히스토리</button></td>
                      </tr>
                    ))}
                  </tbody>

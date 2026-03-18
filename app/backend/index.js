@@ -9,7 +9,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const dbConfig = { host: '127.0.0.1', user: 'root', password: '8850', database: 'plumbing_db', port: 3306 };
+const dbConfig = {
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '8850',
+    database: process.env.DB_NAME || 'plumbing_db',
+    port: process.env.DB_PORT || 3306
+};
 const pool = mysql.createPool(dbConfig);
 
 // 전역 시스템 상태
@@ -57,10 +63,10 @@ app.get('/api/admin/reservations', async (req, res) => {
         const params = [];
         if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
         if (search) {
-            sql += ' AND (res_number LIKE ? OR customer_name LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`);
+            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
         }
-        sql += ' ORDER BY created_at DESC';
+        sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
         const [rows] = await pool.execute(sql, params);
         res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
@@ -79,7 +85,10 @@ app.patch('/api/admin/reservations/:id', async (req, res) => {
 app.get('/api/admin/customers', async (req, res) => {
     const { search } = req.query;
     try {
-        let sql = `SELECT c.*, (SELECT COUNT(*) FROM reservations r WHERE r.phone_number = c.phone_number) as visit_count FROM customers c WHERE 1=1`;
+        let sql = `SELECT c.*, 
+                   (SELECT COUNT(*) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as visit_count,
+                   (SELECT MAX(reservation_datetime) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as last_visit_date
+                   FROM customers c WHERE 1=1`;
         const params = [];
         if (search) { sql += ' AND (customer_name LIKE ? OR phone_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
         const [rows] = await pool.execute(sql, params);
