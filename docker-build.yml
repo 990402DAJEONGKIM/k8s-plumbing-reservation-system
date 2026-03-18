@@ -81,6 +81,8 @@ jobs:
           kubectl rollout restart deployment plumbing-backend
           echo "plumbing-frontend 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-frontend
+          echo "plumbing-backend 롤아웃 완료 대기 중..."
+          kubectl rollout status deployment plumbing-backend
           echo "plumbing-frontend 롤아웃 완료 대기 중..."
           kubectl rollout status deployment plumbing-frontend
           echo "배포 완료!"
