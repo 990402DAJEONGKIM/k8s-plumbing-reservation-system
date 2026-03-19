@@ -541,7 +541,10 @@ export default function AdminDashboard() {
                           const isWarn = parseFloat(node.cpu) > 80 || parseFloat(node.mem) > 80;
                           return (
                             <tr key={idx} className={`hover:bg-slate-50 transition ${isWarn ? 'bg-rose-50/30' : ''}`}>
-                              <td className="p-4 font-black text-slate-800">{node.name}</td>
+                              <td className="p-4 font-black text-slate-800">
+                                {node.name}
+                                {node.ip && <span className="ml-2 text-[10px] text-slate-400 font-bold tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">({node.ip})</span>}
+                              </td>
                               <td className={`p-4 font-black text-sm ${node.status.includes('Warning') || node.status.includes('Not') ? 'text-rose-500' : 'text-emerald-500'}`}>{node.status}</td>
                               <td className={`p-4 text-sm ${parseFloat(node.cpu) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.cpu}</td>
                               <td className={`p-4 text-sm ${parseFloat(node.mem) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.mem}</td>

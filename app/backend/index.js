@@ -177,7 +177,7 @@ async function queryPromVector(query) {
 
 app.get('/api/admin/monitor-data', async (req, res) => {
     // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
-    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, cpuVec, memVec, diskVec, nodeStatusVec] = await Promise.all([
+    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
         queryProm('100 - (avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)'), // RAM 사용률 (전체 노드 평균으로 수정)
         queryProm('100 - ((sum(node_filesystem_avail_bytes{mountpoint="/"}) / sum(node_filesystem_size_bytes{mountpoint="/"})) * 100)'), // 디스크
@@ -190,7 +190,8 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         queryPromVector('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance, node) * 100)'),
         queryPromVector('100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)'),
         queryPromVector('100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)'),
-        queryPromVector('kube_node_status_condition{condition="Ready", status="true"}')
+        queryPromVector('kube_node_status_condition{condition="Ready", status="true"}'),
+        queryPromVector('kube_node_info') // 💡 [추가] IP와 노드 이름 번역을 위한 메타데이터
     ]);
 
     // 2. 결과 조합 (데이터가 없으면 가상 데이터 반환)
@@ -211,13 +212,25 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         web: { latency: Math.floor(Math.random() * 20) + 30 + 'ms', httpStatus: '200 OK' }
     };
 
+    // 💡 IP와 노드 이름 상호 번역을 위한 사전(Map) 만들기
+    const ipToNodeName = {};
+    const nodeNameToIp = {};
+    if (nodeInfoVec) {
+        nodeInfoVec.forEach(res => {
+            if (res.metric.internal_ip && res.metric.node) {
+                ipToNodeName[res.metric.internal_ip] = res.metric.node;
+                nodeNameToIp[res.metric.node] = res.metric.internal_ip;
+            }
+        });
+    }
+
     // 3. 노드별 상세 데이터(Node Details) 병합
     const nodeMap = {};
     // Kube-State-Metrics 기반으로 노드 이름 먼저 등록
     if (nodeStatusVec) {
         nodeStatusVec.forEach(res => {
             const nodeName = res.metric.node;
-            if(nodeName) nodeMap[nodeName] = { name: nodeName, status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+            if(nodeName) nodeMap[nodeName] = { name: nodeName, ip: nodeNameToIp[nodeName] || '', status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
         });
     }
 
@@ -227,6 +240,12 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         vec.forEach(res => {
             let targetNode = res.metric.node || res.metric.instance || 'Unknown';
             if (targetNode.includes(':')) targetNode = targetNode.split(':')[0]; // IP:PORT 인 경우 IP만 추출
+            
+            // 💡 IP 주소 형태라면 진짜 K8s 노드 이름으로 변경하여 매칭
+            if (ipToNodeName[targetNode]) {
+                targetNode = ipToNodeName[targetNode];
+            }
+
             const val = res.value ? parseFloat(res.value[1]).toFixed(1) + '%' : 'N/A';
             
             // 일치하는 노드 찾아 값 넣기
@@ -234,7 +253,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
             if (matchKey) {
                 nodeMap[matchKey][key] = val;
             } else {
-                nodeMap[targetNode] = nodeMap[targetNode] || { name: targetNode, status: '🟢 Active', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+                nodeMap[targetNode] = nodeMap[targetNode] || { name: targetNode, ip: nodeNameToIp[targetNode] || '', status: '🟢 Active', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
                 nodeMap[targetNode][key] = val;
             }
         });
@@ -245,9 +264,9 @@ app.get('/api/admin/monitor-data', async (req, res) => {
     // Prometheus 연결이 안 되어 데이터가 비어있을 경우 (UI 확인용 Mock 데이터 제공)
     if (nodeDetails.length === 0) {
         nodeDetails = [
-            { name: 'k8s-m (Mock)', status: '🟢 Ready', cpu: '32.1%', mem: '65.2%', disk: '40.0%' },
-            { name: 'k8s-n1 (Mock)', status: '🔴 Warning', cpu: '85.5%', mem: '70.1%', disk: '60.0%' },
-            { name: 'k8s-n2 (Mock)', status: '🟢 Ready', cpu: '20.0%', mem: '45.0%', disk: '30.0%' }
+            { name: 'k8s-m (Mock)', ip: '172.16.0.4', status: '🟢 Ready', cpu: '32.1%', mem: '65.2%', disk: '40.0%' },
+            { name: 'k8s-n1 (Mock)', ip: '172.16.0.5', status: '🔴 Warning', cpu: '85.5%', mem: '70.1%', disk: '60.0%' },
+            { name: 'k8s-n2 (Mock)', ip: '172.16.0.6', status: '🟢 Ready', cpu: '20.0%', mem: '45.0%', disk: '30.0%' }
         ];
     }
 
