@@ -178,7 +178,6 @@ kind: Ingress
 metadata:
   name: plumbing-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
     # 💡 HTTP로 접속해도 자동으로 HTTPS로 리다이렉트 시키는 설정
     nginx.ingress.kubernetes.io/ssl-redirect: "true" 
 spec:
