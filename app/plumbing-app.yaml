@@ -177,8 +177,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: plumbing-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    # 💡 HTTP로 접속해도 자동으로 HTTPS로 리다이렉트 시키는 설정
+    nginx.ingress.kubernetes.io/ssl-redirect: "true" 
 spec:
   ingressClassName: nginx # Nginx Ingress Controller를 사용하는 경우
+  # 💡 TLS 인증서 적용 영역 추가
+  tls:
+  - hosts:
+    - www.plumbing.local
+    secretName: plumbing-tls-secret
   rules:
     - host: www.plumbing.local
       http:
