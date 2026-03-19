@@ -151,45 +151,52 @@ app.get('/api/admin/backup/download', (req, res) => {
 });
 
 // [API] 4. 모니터링
-app.get('/api/admin/monitor-data', (req, res) => {
-    // 💡 [실제 운영 적용 시] Prometheus HTTP API 연동 예시
-    // const PROMETHEUS_URL = 'http://prometheus-operated.monitoring.svc.cluster.local:9090/api/v1/query?query=';
-    // const cpu = await fetch(`${PROMETHEUS_URL}100-(avg(irate(node_cpu_seconds_total{mode="idle"}[5m]))*100)`);
-    // 위와 같이 PromQL을 사용하여 각 Exporter의 실제 지표를 가져옵니다.
+const PROMETHEUS_URL = process.env.PROMETHEUS_URL || 'http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090';
 
-    // 🚧 [현재] UI 구현 및 연동 확인을 위한 5계층 가상(Mock) 데이터
-    const metrics = {
-        infra: { // Node Exporter
-            cpu: (os.loadavg()[0] * 10).toFixed(1) + '%', 
-            mem: ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(1) + '%',
-            disk: '42.5%', 
-            network: '1.2 GB/s' 
-        },
-        login: { // Keepalived Exporter
-            vipStatus: 'MASTER (Active)', 
-            uptime: '99.99%'
-        },
-        database: { // MySQL Exporter
-            qps: Math.floor(Math.random() * 50) + 300 + ' q/s', 
-            connections: Math.floor(Math.random() * 10) + 40, 
-            replicationLag: '0 sec' 
-        },
-        kubernetes: { // Kube-State-Metrics
-            podHealth: '100%', 
-            nodeAvailable: '3 / 3' 
-        },
-        web: { // Blackbox Exporter
-            latency: Math.floor(Math.random() * 20) + 30 + 'ms', 
-            httpStatus: '200 OK' 
+//  Prometheus에 PromQL 쿼리를 날리는 헬퍼 함수
+async function queryProm(query) {
+    try {
+        const res = await fetch(`${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.status === 'success' && data.data.result.length > 0) {
+            return parseFloat(data.data.result[0].value[1]);
         }
+    } catch (e) { /* 무시하고 Fallback 데이터 반환 */ }
+    return null;
+}
+
+app.get('/api/admin/monitor-data', async (req, res) => {
+    // 1. 병렬로 여러 PromQL 쿼리 실행 (Node Exporter & Kube-State-Metrics)
+    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal] = await Promise.all([
+        queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
+        queryProm('100 * (1 - ((avg_over_time(node_memory_MemFree_bytes[5m]) + avg_over_time(node_memory_Cached_bytes[5m]) + avg_over_time(node_memory_Buffers_bytes[5m])) / avg_over_time(node_memory_MemTotal_bytes[5m])))'), // RAM 사용률
+        queryProm('100 - ((sum(node_filesystem_avail_bytes{mountpoint="/"}) / sum(node_filesystem_size_bytes{mountpoint="/"})) * 100)'), // 디스크
+        queryProm('sum(rate(node_network_receive_bytes_total[5m]))'), // 네트워크 수신량
+        queryProm('sum(kube_pod_status_phase{phase="Running"})'), // 실행 중인 파드 수
+        queryProm('sum(kube_pod_status_phase)'), // 전체 파드 수
+        queryProm('sum(kube_node_status_condition{condition="Ready", status="true"})'), // 준비된 노드 수
+        queryProm('count(kube_node_info)') // 전체 노드 수
+    ]);
+
+    // 2. 결과 조합 (데이터가 없으면 가상 데이터 반환)
+    const metrics = {
+        infra: {
+            cpu: cpu !== null ? cpu.toFixed(1) + '%' : 'N/A',
+            mem: mem !== null ? mem.toFixed(1) + '%' : 'N/A',
+            disk: disk !== null ? disk.toFixed(1) + '%' : 'N/A',
+            network: netRx !== null ? (netRx / 1024 / 1024).toFixed(2) + ' MB/s' : 'N/A'
+        },
+        kubernetes: {
+            podHealth: podRun !== null && podTotal !== null ? Math.round((podRun / podTotal) * 100) + '%' : '100%',
+            nodeAvailable: nodeReady !== null && nodeTotal !== null ? `${nodeReady} / ${nodeTotal}` : '3 / 3'
+        },
+        // 🚧 MySQL, Keepalived, Blackbox 등은 추후 Exporter 설치 후 연동
+        login: { vipStatus: 'MASTER (Active)', uptime: '99.99%' },
+        database: { qps: Math.floor(Math.random() * 50) + 300 + ' q/s', connections: Math.floor(Math.random() * 10) + 40, replicationLag: '0 sec' },
+        web: { latency: Math.floor(Math.random() * 20) + 30 + 'ms', httpStatus: '200 OK' }
     };
 
-    res.json({ 
-        success: true, 
-        metrics, 
-        errCount: errorLogs.length, 
-        logs: errorLogs 
-    });
+    res.json({ success: true, metrics, errCount: errorLogs.length, logs: errorLogs });
 });
 
 // [API] 5. 관리자 계정
