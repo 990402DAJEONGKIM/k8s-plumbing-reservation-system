@@ -14,7 +14,7 @@ metadata:
   name: plumbing-db-svc
 subsets:
   - addresses:
-      - ip: 172.16.0.2  # proxySQL 설치한 서버의 IP
+      - ip: 172.16.0.7  # proxySQL 설치한 서버의 IP
     ports:
       - port: 3306
 ---
