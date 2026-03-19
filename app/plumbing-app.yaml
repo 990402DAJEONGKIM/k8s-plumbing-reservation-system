@@ -1,88 +1,22 @@
-### 1. Database (MySQL) ###
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mysql-initdb-config
-data:
-  init.sql: |
-    CREATE TABLE IF NOT EXISTS admin_users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL,
-        password VARCHAR(255) NOT NULL
-    );
-    -- 💡 초기 관리자 계정 생성 (아이디: admin / 비밀번호: admin123)
-    INSERT INTO admin_users (username, password) VALUES ('admin', 'admin123');
-
-    CREATE TABLE IF NOT EXISTS reservations (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        res_number VARCHAR(20) NOT NULL,
-        customer_name VARCHAR(50) NOT NULL,
-        phone_number VARCHAR(20) NOT NULL,
-        address VARCHAR(255),
-        issue_type VARCHAR(50),
-        reservation_datetime DATETIME,
-        status VARCHAR(20) DEFAULT 'PENDING',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS customers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        customer_name VARCHAR(50) NOT NULL,
-        phone_number VARCHAR(20) NOT NULL,
-        address VARCHAR(255)
-    );
-
-    CREATE TABLE IF NOT EXISTS announcements (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(100) NOT NULL,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: plumbing-db
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: plumbing-db
-  template:
-    metadata:
-      labels:
-        app: plumbing-db
-    spec:
-      containers:
-        - name: mysql
-          image: mysql:8.0
-          env:
-            - name: MYSQL_ROOT_PASSWORD
-              value: "8850"
-            - name: MYSQL_DATABASE
-              value: "plumbing_db"
-          ports:
-            - containerPort: 3306
-          volumeMounts:
-            - name: initdb-volume
-              mountPath: /docker-entrypoint-initdb.d
-      volumes:
-        - name: initdb-volume
-          configMap:
-            name: mysql-initdb-config
----
+# 1. DB Service
 apiVersion: v1
 kind: Service
 metadata:
   name: plumbing-db-svc
 spec:
-  selector:
-    app: plumbing-db
   ports:
-    - protocol: TCP
-      port: 3306
-      targetPort: 3306
-
+    - port: 3306
+---
+# DB - K8S와 연결하는 Endpoints 추가 (외부 IP 등록)
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: plumbing-db-svc
+subsets:
+  - addresses:
+      - ip: 172.16.0.7  # 외부 마스터 서버 IP
+    ports:
+      - port: 3306
 ---
 ### 2. Backend (Node.js) ###
 apiVersion: apps/v1
