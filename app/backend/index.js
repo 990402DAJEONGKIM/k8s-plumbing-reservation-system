@@ -152,9 +152,44 @@ app.get('/api/admin/backup/download', (req, res) => {
 
 // [API] 4. 모니터링
 app.get('/api/admin/monitor-data', (req, res) => {
-    const memUsage = ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(1);
-    const cpuLoad = (os.loadavg()[0] * 10).toFixed(1);
-    res.json({ success: true, cpu: `${cpuLoad}%`, mem: `${memUsage}%`, errCount: errorLogs.length, logs: errorLogs });
+    // 💡 [실제 운영 적용 시] Prometheus HTTP API 연동 예시
+    // const PROMETHEUS_URL = 'http://prometheus-operated.monitoring.svc.cluster.local:9090/api/v1/query?query=';
+    // const cpu = await fetch(`${PROMETHEUS_URL}100-(avg(irate(node_cpu_seconds_total{mode="idle"}[5m]))*100)`);
+    // 위와 같이 PromQL을 사용하여 각 Exporter의 실제 지표를 가져옵니다.
+
+    // 🚧 [현재] UI 구현 및 연동 확인을 위한 5계층 가상(Mock) 데이터
+    const metrics = {
+        infra: { // Node Exporter
+            cpu: (os.loadavg()[0] * 10).toFixed(1) + '%', 
+            mem: ((os.totalmem() - os.freemem()) / os.totalmem() * 100).toFixed(1) + '%',
+            disk: '42.5%', 
+            network: '1.2 GB/s' 
+        },
+        login: { // Keepalived Exporter
+            vipStatus: 'MASTER (Active)', 
+            uptime: '99.99%'
+        },
+        database: { // MySQL Exporter
+            qps: Math.floor(Math.random() * 50) + 300 + ' q/s', 
+            connections: Math.floor(Math.random() * 10) + 40, 
+            replicationLag: '0 sec' 
+        },
+        kubernetes: { // Kube-State-Metrics
+            podHealth: '100%', 
+            nodeAvailable: '3 / 3' 
+        },
+        web: { // Blackbox Exporter
+            latency: Math.floor(Math.random() * 20) + 30 + 'ms', 
+            httpStatus: '200 OK' 
+        }
+    };
+
+    res.json({ 
+        success: true, 
+        metrics, 
+        errCount: errorLogs.length, 
+        logs: errorLogs 
+    });
 });
 
 // [API] 5. 관리자 계정

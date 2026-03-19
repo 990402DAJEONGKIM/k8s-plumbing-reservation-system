@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { 
   ClipboardList, Calendar, Users, Activity, Settings, 
   Search, HeartPulse, CheckCircle2, Truck, Wrench, History, X,
-  AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2
+  AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2,
+  Database, Cloud, Globe, ShieldCheck
 } from 'lucide-react';
 import { fetcher } from '../../lib/api';
 
@@ -20,7 +21,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const [data, setData] = useState({ reservations: [], customers: [], announcements: [], calendar: [] });
-  const [sysStats, setSysStats] = useState({ cpu: '0%', mem: '0%', errCount: 0, logs: [] });
+  const [sysStats, setSysStats] = useState<any>({ metrics: null, errCount: 0, logs: [] });
   // 설정 상태
   const [config, setConfig] = useState({ isMaintenance: false, notificationEnabled: true });
   const [adminUsername, setAdminUsername] = useState('');
@@ -107,7 +108,7 @@ export default function AdminDashboard() {
     const fetchMonitor = async () => {
       try {
         const result = await fetcher(`/api/admin/monitor-data?_t=${Date.now()}`);
-        if (result.success) setSysStats({ cpu: result.cpu, mem: result.mem, errCount: result.errCount, logs: result.logs });
+        if (result.success) setSysStats({ metrics: result.metrics, errCount: result.errCount, logs: result.logs });
       } catch (e) { console.error("Monitor Failed"); }
     };
     fetchMonitor();
@@ -474,11 +475,52 @@ export default function AdminDashboard() {
           {activeMenu === '시스템 모니터링' && (
             <div className="space-y-10 animate-in fade-in">
               <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
-              <div className="grid grid-cols-3 gap-8 font-black">
-                <StatCard label="CPU Usage" val={sysStats.cpu} color="bg-[#10b981]" />
-                <StatCard label="Memory" val={sysStats.mem} color="bg-[#6366f1]" />
-                <StatCard label="Error Logs" val={String(sysStats.errCount)} color="bg-[#f43f5e]" />
-              </div>
+              
+              {sysStats.metrics && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 font-black text-left">
+                  {/* 1. 인프라 하드웨어 (Node Exporter) */}
+                  <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-indigo-600"><Server size={24}/> <span className="text-lg italic uppercase tracking-tighter">Infrastructure</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>CPU / Mem</span><span className="text-indigo-600">{sysStats.metrics.infra.cpu} / {sysStats.metrics.infra.mem}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Disk / Net</span><span className="text-indigo-600">{sysStats.metrics.infra.disk} / {sysStats.metrics.infra.network}</span></div>
+                  </div>
+
+                  {/* 2. 쿠버네티스 (Kube-State-Metrics) */}
+                  <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-blue-500"><Cloud size={24}/> <span className="text-lg italic uppercase tracking-tighter">Kubernetes</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Pod Health</span><span className="text-blue-500">{sysStats.metrics.kubernetes.podHealth}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Nodes Available</span><span className="text-blue-500">{sysStats.metrics.kubernetes.nodeAvailable}</span></div>
+                  </div>
+
+                  {/* 3. 데이터베이스 (MySQL Exporter) */}
+                  <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-emerald-500"><Database size={24}/> <span className="text-lg italic uppercase tracking-tighter">Database</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>QPS / Conn</span><span className="text-emerald-500">{sysStats.metrics.database.qps} / {sysStats.metrics.database.connections}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Rep. Lag</span><span className="text-emerald-500">{sysStats.metrics.database.replicationLag}</span></div>
+                  </div>
+
+                  {/* 4. 로그인/진입점 (Keepalived Exporter) */}
+                  <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-amber-500"><ShieldCheck size={24}/> <span className="text-lg italic uppercase tracking-tighter">VIP Entrypoint</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>VIP Status</span><span className="text-amber-500">{sysStats.metrics.login.vipStatus}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Uptime</span><span className="text-amber-500">{sysStats.metrics.login.uptime}</span></div>
+                  </div>
+
+                  {/* 5. 웹 접속/응답 (Blackbox Exporter) */}
+                  <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-2 text-rose-500"><Globe size={24}/> <span className="text-lg italic uppercase tracking-tighter">Web / Ingress</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Latency</span><span className="text-rose-500">{sysStats.metrics.web.latency}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>HTTP Status</span><span className="text-rose-500">{sysStats.metrics.web.httpStatus}</span></div>
+                  </div>
+
+                  {/* 기존 에러 로그 카드 */}
+                  <div className="bg-[#f43f5e] p-6 rounded-[30px] shadow-sm flex flex-col gap-4 text-white justify-center transition-all hover:shadow-lg hover:scale-[1.02]">
+                    <div className="flex items-center justify-between text-white/80"><span className="text-lg italic uppercase tracking-tighter">Error Logs</span> <AlertCircle size={24}/></div>
+                    <div className="text-5xl font-black italic tracking-tighter">{sysStats.errCount}</div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left">
                 <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic"><AlertCircle className="text-rose-500" size={24}/> Recent Error Messages</h3>
                 <div className="space-y-3 font-bold italic">
