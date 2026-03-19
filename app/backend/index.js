@@ -165,17 +165,32 @@ async function queryProm(query) {
     return null;
 }
 
+//  Prometheus에 배열 형태의 결과(Vector)를 가져오는 헬퍼 함수
+async function queryPromVector(query) {
+    try {
+        const res = await fetch(`${PROMETHEUS_URL}/api/v1/query?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        if (data.status === 'success' && data.data.result) return data.data.result;
+    } catch (e) { /* 무시하고 빈 배열 반환 */ }
+    return [];
+}
+
 app.get('/api/admin/monitor-data', async (req, res) => {
-    // 1. 병렬로 여러 PromQL 쿼리 실행 (Node Exporter & Kube-State-Metrics)
-    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal] = await Promise.all([
+    // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
+    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, cpuVec, memVec, diskVec, nodeStatusVec] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
-        queryProm('100 * (1 - ((avg_over_time(node_memory_MemFree_bytes[5m]) + avg_over_time(node_memory_Cached_bytes[5m]) + avg_over_time(node_memory_Buffers_bytes[5m])) / avg_over_time(node_memory_MemTotal_bytes[5m])))'), // RAM 사용률
+        queryProm('100 - (avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)'), // RAM 사용률 (전체 노드 평균으로 수정)
         queryProm('100 - ((sum(node_filesystem_avail_bytes{mountpoint="/"}) / sum(node_filesystem_size_bytes{mountpoint="/"})) * 100)'), // 디스크
         queryProm('sum(rate(node_network_receive_bytes_total[5m]))'), // 네트워크 수신량
         queryProm('sum(kube_pod_status_phase{phase="Running"})'), // 실행 중인 파드 수
         queryProm('sum(kube_pod_status_phase)'), // 전체 파드 수
         queryProm('sum(kube_node_status_condition{condition="Ready", status="true"})'), // 준비된 노드 수
-        queryProm('count(kube_node_info)') // 전체 노드 수
+        queryProm('count(kube_node_info)'), // 전체 노드 수
+        // 💡 노드별 상세 데이터를 위한 그룹화(by) 쿼리
+        queryPromVector('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance, node) * 100)'),
+        queryPromVector('100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)'),
+        queryPromVector('100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)'),
+        queryPromVector('kube_node_status_condition{condition="Ready", status="true"}')
     ]);
 
     // 2. 결과 조합 (데이터가 없으면 가상 데이터 반환)
@@ -196,7 +211,47 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         web: { latency: Math.floor(Math.random() * 20) + 30 + 'ms', httpStatus: '200 OK' }
     };
 
-    res.json({ success: true, metrics, errCount: errorLogs.length, logs: errorLogs });
+    // 3. 노드별 상세 데이터(Node Details) 병합
+    const nodeMap = {};
+    // Kube-State-Metrics 기반으로 노드 이름 먼저 등록
+    if (nodeStatusVec) {
+        nodeStatusVec.forEach(res => {
+            const nodeName = res.metric.node;
+            if(nodeName) nodeMap[nodeName] = { name: nodeName, status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+        });
+    }
+
+    // Node Exporter 데이터를 기존 노드 리스트에 병합하는 헬퍼
+    const mergeVec = (vec, key) => {
+        if (!vec) return;
+        vec.forEach(res => {
+            let targetNode = res.metric.node || res.metric.instance || 'Unknown';
+            if (targetNode.includes(':')) targetNode = targetNode.split(':')[0]; // IP:PORT 인 경우 IP만 추출
+            const val = res.value ? parseFloat(res.value[1]).toFixed(1) + '%' : 'N/A';
+            
+            // 일치하는 노드 찾아 값 넣기
+            const matchKey = Object.keys(nodeMap).find(k => k === targetNode || k.includes(targetNode) || targetNode.includes(k));
+            if (matchKey) {
+                nodeMap[matchKey][key] = val;
+            } else {
+                nodeMap[targetNode] = nodeMap[targetNode] || { name: targetNode, status: '🟢 Active', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+                nodeMap[targetNode][key] = val;
+            }
+        });
+    };
+    mergeVec(cpuVec, 'cpu'); mergeVec(memVec, 'mem'); mergeVec(diskVec, 'disk');
+
+    let nodeDetails = Object.values(nodeMap);
+    // Prometheus 연결이 안 되어 데이터가 비어있을 경우 (UI 확인용 Mock 데이터 제공)
+    if (nodeDetails.length === 0) {
+        nodeDetails = [
+            { name: 'k8s-m (Mock)', status: '🟢 Ready', cpu: '32.1%', mem: '65.2%', disk: '40.0%' },
+            { name: 'k8s-n1 (Mock)', status: '🔴 Warning', cpu: '85.5%', mem: '70.1%', disk: '60.0%' },
+            { name: 'k8s-n2 (Mock)', status: '🟢 Ready', cpu: '20.0%', mem: '45.0%', disk: '30.0%' }
+        ];
+    }
+
+    res.json({ success: true, metrics, nodeDetails, errCount: errorLogs.length, logs: errorLogs });
 });
 
 // [API] 5. 관리자 계정

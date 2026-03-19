@@ -21,7 +21,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const [data, setData] = useState({ reservations: [], customers: [], announcements: [], calendar: [] });
-  const [sysStats, setSysStats] = useState<any>({ metrics: null, errCount: 0, logs: [] });
+  const [sysStats, setSysStats] = useState<any>({ metrics: null, nodeDetails: [], errCount: 0, logs: [] });
   // 설정 상태
   const [config, setConfig] = useState({ isMaintenance: false, notificationEnabled: true });
   const [adminUsername, setAdminUsername] = useState('');
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
     const fetchMonitor = async () => {
       try {
         const result = await fetcher(`/api/admin/monitor-data?_t=${Date.now()}`);
-        if (result.success) setSysStats({ metrics: result.metrics, errCount: result.errCount, logs: result.logs });
+        if (result.success) setSysStats({ metrics: result.metrics, nodeDetails: result.nodeDetails, errCount: result.errCount, logs: result.logs });
       } catch (e) { console.error("Monitor Failed"); }
     };
     fetchMonitor();
@@ -517,6 +517,40 @@ export default function AdminDashboard() {
                   <div className="bg-[#f43f5e] p-6 rounded-[30px] shadow-sm flex flex-col gap-4 text-white justify-center transition-all hover:shadow-lg hover:scale-[1.02]">
                     <div className="flex items-center justify-between text-white/80"><span className="text-lg italic uppercase tracking-tighter">Error Logs</span> <AlertCircle size={24}/></div>
                     <div className="text-5xl font-black italic tracking-tighter">{sysStats.errCount}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* 💡 [추가] 노드별 상세 상태 테이블 (Top-Down 접근법 적용) */}
+              {sysStats.nodeDetails && sysStats.nodeDetails.length > 0 && (
+                <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left overflow-hidden">
+                  <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Server className="text-indigo-600" size={24}/> Cluster Node Status</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left font-black italic">
+                      <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase text-slate-400 tracking-widest">
+                        <tr>
+                          <th className="p-4 font-black">Node Name</th>
+                          <th className="p-4 font-black">Status</th>
+                          <th className="p-4 font-black">CPU Usage</th>
+                          <th className="p-4 font-black">Memory Usage</th>
+                          <th className="p-4 font-black">Disk Usage</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {sysStats.nodeDetails.map((node: any, idx: number) => {
+                          const isWarn = parseFloat(node.cpu) > 80 || parseFloat(node.mem) > 80;
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50 transition ${isWarn ? 'bg-rose-50/30' : ''}`}>
+                              <td className="p-4 font-black text-slate-800">{node.name}</td>
+                              <td className={`p-4 font-black text-sm ${node.status.includes('Warning') || node.status.includes('Not') ? 'text-rose-500' : 'text-emerald-500'}`}>{node.status}</td>
+                              <td className={`p-4 text-sm ${parseFloat(node.cpu) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.cpu}</td>
+                              <td className={`p-4 text-sm ${parseFloat(node.mem) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.mem}</td>
+                              <td className="p-4 text-sm text-slate-600">{node.disk}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
