@@ -312,7 +312,7 @@ app.put('/api/admin/account', async (req, res) => {
 app.get('/api/admin/announcements', async (req, res) => {
     try {
         // 프론트엔드가 createdAt 속성을 사용하므로 AS로 이름 매핑
-        const [rows] = await pool.execute('SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC');
+        const [rows] = await pool.query('SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC');
         res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
 });
