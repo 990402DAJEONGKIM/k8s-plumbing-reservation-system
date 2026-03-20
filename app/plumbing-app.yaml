@@ -6,6 +6,7 @@ metadata:
 spec:
   ports:
     - port: 3306
+      targetPort: 6033
 ---
 # DB - K8S와 연결하는 Endpoints 추가 (외부 IP 등록)
 apiVersion: v1
