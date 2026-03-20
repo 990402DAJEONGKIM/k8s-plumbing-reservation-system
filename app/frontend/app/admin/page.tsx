@@ -67,22 +67,22 @@ export default function AdminDashboard() {
     try {
       const ts = Date.now(); // 💡 브라우저 캐시 우회를 위한 타임스탬프
       if (activeMenu === '예약 관리') {
-        const result = await fetcher(`/api/admin/reservations?status=${filter}&search=${encodeURIComponent(search)}&_t=${ts}`);
+        const result = await fetcher(`/api/admin/reservations?status=${filter}&search=${encodeURIComponent(search)}&admin=true&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, reservations: result.list }));
       } else if (activeMenu === '고객 관리') {
-        const result = await fetcher(`/api/admin/customers?search=${encodeURIComponent(search)}&_t=${ts}`);
+        const result = await fetcher(`/api/admin/customers?search=${encodeURIComponent(search)}&admin=true&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, customers: result.list }));
       } else if (activeMenu === '일정 조회') {
-        const result = await fetcher(`/api/admin/calendar?_t=${ts}`);
+        const result = await fetcher(`/api/admin/calendar?admin=true&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, calendar: result.list }));
       } else if (activeMenu === '설정') {
         const result = await fetcher(`/api/admin/settings`);
         if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
         
-        const accountResult = await fetcher(`/api/admin/account`);
+        const accountResult = await fetcher(`/api/admin/account?admin=true&_t=${ts}`);
         if (accountResult.success) setAdminUsername(accountResult.username);
       } else if (activeMenu === '공지사항 관리') {
-        const result = await fetcher(`/api/admin/announcements?_t=${ts}`);
+        const result = await fetcher(`/api/admin/announcements?admin=true&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, announcements: result.list }));
       }
     } catch (e) { console.error("Load Failed"); }
@@ -93,7 +93,7 @@ export default function AdminDashboard() {
     setSelectedDate(dateStr);
     try {
       // 💡 fetcher 대신 완벽하게 캐시를 우회하는 네이티브 fetch 사용
-      const res = await fetch(`${API_BASE_URL}/api/admin/reservations?status=ALL&search=${encodeURIComponent(dateStr)}&_t=${Date.now()}`, {
+      const res = await fetch(`${API_BASE_URL}/api/admin/reservations?status=ALL&search=${encodeURIComponent(dateStr)}&admin=true&_t=${Date.now()}`, {
         cache: 'no-store',
         headers: { 'Pragma': 'no-cache' }
       });
@@ -128,7 +128,10 @@ export default function AdminDashboard() {
         body: JSON.stringify({ status })
       });
       loadData();
-    } catch (e) { console.error("Update Failed"); }
+    } catch (e: any) { 
+      alert(`상태 변경 실패: ${e?.info?.message || e.message}`);
+      console.error("Update Failed", e); 
+    }
   };
 
   // 설정 제어 함수
@@ -168,7 +171,7 @@ export default function AdminDashboard() {
         e.currentTarget.reset();
       }
     } catch (err: any) {
-      alert(`오류: ${err.info.message}`);
+      alert(`오류: ${err?.info?.message || err.message}`);
     }
   };
 
@@ -188,7 +191,7 @@ export default function AdminDashboard() {
       loadData();
       setCurrentAnnounce({ id: null, title: '', content: '' });
     } catch (err: any) {
-      alert(`오류: ${err.info.message}`);
+      alert(`오류: ${err?.info?.message || err.message}`);
     }
   };
 
@@ -199,7 +202,7 @@ export default function AdminDashboard() {
         alert('공지사항이 삭제되었습니다.');
         loadData();
       } catch (err) {
-        alert('삭제 처리 중 오류가 발생했습니다.');
+        alert(`삭제 처리 중 오류가 발생했습니다. (${err?.info?.message || err.message})`);
       }
     }
   };

@@ -43,6 +43,7 @@ app.post('/api/admin/login', async (req, res) => {
             res.status(401).json({ success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' });
         }
     } catch (err) {
+        console.error("Login Error:", err);
         res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
     }
 });
@@ -82,9 +83,10 @@ app.post('/api/reservations', async (req, res) => {
 
 // [API] 1. 예약 관리 (조회 페이지도 이 API를 사용함)
 app.get('/api/admin/reservations', async (req, res) => {
-    const { status, search } = req.query;
+    const { status, search, admin } = req.query;
     try {
-        let sql = 'SELECT * FROM reservations WHERE 1=1';
+        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        let sql = `${prefix}SELECT * FROM reservations WHERE 1=1`;
         const params = [];
         if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
         if (search) {
@@ -95,7 +97,10 @@ app.get('/api/admin/reservations', async (req, res) => {
         sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
         const [rows] = await pool.query(sql, params);
         res.json({ success: true, list: rows });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Reservations Get Error:", err);
+        res.status(500).json({ success: false, message: '조회 중 오류가 발생했습니다.' }); 
+    }
 });
 
 app.patch('/api/admin/reservations/:id', async (req, res) => {
@@ -104,15 +109,19 @@ app.patch('/api/admin/reservations/:id', async (req, res) => {
     try {
         await pool.execute('UPDATE reservations SET status = ? WHERE id = ?', [status.toUpperCase(), id]);
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Reservation Update Error:", err);
+        res.status(500).json({ success: false, message: '상태 변경 중 오류가 발생했습니다.' }); 
+    }
 });
 
 // [API] 1.5 일정 조회 (달력 데이터 집계)
 app.get('/api/admin/calendar', async (req, res) => {
+    const { admin } = req.query;
     try {
-        // 💡 DB에 저장된 UTC 시간을 한국 시간(KST, +9시간)으로 보정하여 달력 그룹핑
+        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
         const sql = `
-            SELECT DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d') as date, 
+            ${prefix}SELECT DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d') as date, 
                    COUNT(*) as count,
                    GROUP_CONCAT(CONCAT(DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%H:%i'), ' ', customer_name, ' (', issue_type, ')') ORDER BY reservation_datetime ASC SEPARATOR '||') as details
             FROM reservations 
@@ -122,14 +131,18 @@ app.get('/api/admin/calendar', async (req, res) => {
         `;
         const [rows] = await pool.query(sql);
         res.json({ success: true, list: rows });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Calendar Get Error:", err);
+        res.status(500).json({ success: false, message: '일정 조회 중 오류가 발생했습니다.' }); 
+    }
 });
 
 // [API] 2. 고객 관리
 app.get('/api/admin/customers', async (req, res) => {
-    const { search } = req.query;
+    const { search, admin } = req.query;
     try {
-        let sql = `SELECT c.*, 
+        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        let sql = `${prefix}SELECT c.*, 
                    (SELECT COUNT(*) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as visit_count,
                    (SELECT MAX(reservation_datetime) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as last_visit_date
                    FROM customers c WHERE 1=1`;
@@ -137,7 +150,10 @@ app.get('/api/admin/customers', async (req, res) => {
         if (search) { sql += ' AND (customer_name LIKE ? OR phone_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
         const [rows] = await pool.query(sql, params);
         res.json({ success: true, list: rows });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Customers Get Error:", err);
+        res.status(500).json({ success: false, message: '조회 중 오류가 발생했습니다.' }); 
+    }
 });
 
 // [API] 3. 설정 및 백업
@@ -279,11 +295,16 @@ app.get('/api/admin/monitor-data', async (req, res) => {
 
 // [API] 5. 관리자 계정
 app.get('/api/admin/account', async (req, res) => {
+    const { admin } = req.query;
     try {
-        const [rows] = await pool.query('SELECT username FROM admin_users LIMIT 1');
+        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const [rows] = await pool.query(`${prefix}SELECT username FROM admin_users LIMIT 1`);
         if (rows.length > 0) res.json({ success: true, username: rows[0].username });
         else res.json({ success: false, message: '계정 정보가 없습니다.' });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Account Get Error:", err);
+        res.status(500).json({ success: false }); 
+    }
 });
 
 app.put('/api/admin/account', async (req, res) => {
@@ -304,17 +325,23 @@ app.put('/api/admin/account', async (req, res) => {
         await pool.execute('UPDATE admin_users SET username = ?, password = ? WHERE id = ?', [updatedUsername, updatedPassword, admin.id]);
         res.json({ success: true, message: '계정 정보가 성공적으로 변경되었습니다.' });
     } catch (err) {
+        console.error("Account Update Error:", err);
         res.status(500).json({ success: false, message: '계정 정보 변경 중 오류가 발생했습니다.' });
     }
 });
 
 // [API] 6. 공지사항 관리
 app.get('/api/admin/announcements', async (req, res) => {
+    const { admin } = req.query;
     try {
+        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
         // 프론트엔드가 createdAt 속성을 사용하므로 AS로 이름 매핑
-        const [rows] = await pool.query('SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC');
+        const [rows] = await pool.query(`${prefix}SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC`);
         res.json({ success: true, list: rows });
-    } catch (err) { res.status(500).json({ success: false }); }
+    } catch (err) { 
+        console.error("Announcements Get Error:", err);
+        res.status(500).json({ success: false }); 
+    }
 });
 
 app.post('/api/admin/announcements', async (req, res) => {
@@ -325,7 +352,10 @@ app.post('/api/admin/announcements', async (req, res) => {
     try {
         await pool.execute('INSERT INTO announcements (title, content) VALUES (?, ?)', [title, content]);
         res.json({ success: true, message: '등록 성공' });
-    } catch (err) { res.status(500).json({ success: false, message: '공지사항 등록 중 오류가 발생했습니다.' }); }
+    } catch (err) { 
+        console.error("Announcement Post Error:", err);
+        res.status(500).json({ success: false, message: '공지사항 등록 중 오류가 발생했습니다.' }); 
+    }
 });
 
 app.put('/api/admin/announcements/:id', async (req, res) => {
@@ -335,7 +365,10 @@ app.put('/api/admin/announcements/:id', async (req, res) => {
         const [result] = await pool.execute('UPDATE announcements SET title = ?, content = ? WHERE id = ?', [title, content, id]);
         if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
         res.json({ success: true });
-    } catch (err) { res.status(500).json({ success: false, message: '공지사항 수정 중 오류가 발생했습니다.' }); }
+    } catch (err) { 
+        console.error("Announcement Put Error:", err);
+        res.status(500).json({ success: false, message: '공지사항 수정 중 오류가 발생했습니다.' }); 
+    }
 });
 
 app.delete('/api/admin/announcements/:id', async (req, res) => {
@@ -344,7 +377,10 @@ app.delete('/api/admin/announcements/:id', async (req, res) => {
         const [result] = await pool.execute('DELETE FROM announcements WHERE id = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ success: false, message: '공지사항을 찾을 수 없습니다.' });
         res.json({ success: true, message: '공지사항이 삭제되었습니다.' });
-    } catch (err) { res.status(500).json({ success: false, message: '공지사항 삭제 중 오류가 발생했습니다.' }); }
+    } catch (err) { 
+        console.error("Announcement Delete Error:", err);
+        res.status(500).json({ success: false, message: '공지사항 삭제 중 오류가 발생했습니다.' }); 
+    }
 });
 
 app.listen(4000, () => console.log('🚀 Admin Server: http://localhost:4000'));
