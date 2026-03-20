@@ -36,7 +36,7 @@ app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
     try {
         // 💡 로그인 시 캐시된 빈 데이터를 가져오지 않도록 강제 우회
-        const [rows] = await pool.execute('/* NO_CACHE */ SELECT * FROM admin_users WHERE username = ? AND password = ?', [username, password]);
+        const [rows] = await pool.execute('WITH _nc AS (SELECT 1) SELECT * FROM admin_users WHERE username = ? AND password = ?', [username, password]);
         if (rows.length > 0) {
             // 실제로는 JWT 토큰 등 발급
             res.json({ success: true, message: '로그인 성공' });
@@ -86,7 +86,7 @@ app.post('/api/reservations', async (req, res) => {
 app.get('/api/admin/reservations', async (req, res) => {
     const { status, search, admin } = req.query;
     try {
-        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         let sql = `${prefix}SELECT * FROM reservations WHERE 1=1`;
         const params = [];
         if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
@@ -120,7 +120,7 @@ app.patch('/api/admin/reservations/:id', async (req, res) => {
 app.get('/api/admin/calendar', async (req, res) => {
     const { admin } = req.query;
     try {
-        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         const sql = `
             ${prefix}SELECT DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d') as date, 
                    COUNT(*) as count,
@@ -142,7 +142,7 @@ app.get('/api/admin/calendar', async (req, res) => {
 app.get('/api/admin/customers', async (req, res) => {
     const { search, admin } = req.query;
     try {
-        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         let sql = `${prefix}SELECT c.*, 
                    (SELECT COUNT(*) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as visit_count,
                    (SELECT MAX(reservation_datetime) FROM reservations r WHERE REPLACE(r.phone_number, '-', '') = REPLACE(c.phone_number, '-', '') OR REPLACE(r.customer_name, ' ', '') = REPLACE(c.customer_name, ' ', '')) as last_visit_date
@@ -298,7 +298,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
 app.get('/api/admin/account', async (req, res) => {
     const { admin } = req.query;
     try {
-        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         const [rows] = await pool.query(`${prefix}SELECT username FROM admin_users LIMIT 1`);
         if (rows.length > 0) res.json({ success: true, username: rows[0].username });
         else res.json({ success: false, message: '계정 정보가 없습니다.' });
@@ -312,7 +312,7 @@ app.put('/api/admin/account', async (req, res) => {
     const { currentPassword, newUsername, newPassword } = req.body;
 
     try {
-        const [rows] = await pool.execute('SELECT * FROM admin_users LIMIT 1');
+        const [rows] = await pool.execute('WITH _nc AS (SELECT 1) SELECT * FROM admin_users LIMIT 1');
         if (rows.length === 0) return res.status(404).json({ success: false, message: '관리자 계정을 찾을 수 없습니다.' });
         
         const admin = rows[0];
@@ -335,7 +335,7 @@ app.put('/api/admin/account', async (req, res) => {
 app.get('/api/admin/announcements', async (req, res) => {
     const { admin } = req.query;
     try {
-        const prefix = admin === 'true' ? '/* NO_CACHE */ ' : '';
+        const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         // 프론트엔드가 createdAt 속성을 사용하므로 AS로 이름 매핑
         const [rows] = await pool.query(`${prefix}SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC`);
         res.json({ success: true, list: rows });
