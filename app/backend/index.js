@@ -85,20 +85,32 @@ app.post('/api/reservations', async (req, res) => {
 // [API] 1. 예약 관리 (조회 페이지도 이 API를 사용함)
 app.get('/api/admin/reservations', async (req, res) => {
     const { status, search, admin } = req.query;
+    
+    // 💡 쿼리 조합 부분을 밖으로 분리하여 재사용 가능하게 구성
+    let sqlBase = `SELECT * FROM reservations WHERE 1=1`;
+    const params = [];
+    if (status && status !== 'ALL') { sqlBase += ' AND status = ?'; params.push(status); }
+    if (search) {
+        sqlBase += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ? OR DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), "%Y-%m-%d") LIKE ?)';
+        params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    sqlBase += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
+
     try {
         const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
-        let sql = `${prefix}SELECT * FROM reservations WHERE 1=1`;
-        const params = [];
-        if (status && status !== 'ALL') { sql += ' AND status = ?'; params.push(status); }
-        if (search) {
-            // 💡 검색 시 DB에 저장된 UTC 시간을 KST로 포맷팅하여 매칭
-            sql += ' AND (res_number LIKE ? OR customer_name LIKE ? OR phone_number LIKE ? OR DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), "%Y-%m-%d") LIKE ?)';
-            params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-        }
-        sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
-        const [rows] = await pool.query(sql, params);
+        const [rows] = await pool.query(prefix + sqlBase, params);
         res.json({ success: true, list: rows });
     } catch (err) { 
+        // 🛡️ 슬레이브(읽기 DB) 사망 시 마스터 DB로 0.1초 만에 강제 재시도 (Fallback)
+        if (admin !== 'true') {
+            try {
+                console.warn("⚠️ Slave DB Down! Fallback reading from Master DB...");
+                const [fallbackRows] = await pool.query('WITH _nc AS (SELECT 1) ' + sqlBase, params);
+                return res.json({ success: true, list: fallbackRows });
+            } catch (fallbackErr) {
+                console.error("Master Fallback Error:", fallbackErr);
+            }
+        }
         console.error("Reservations Get Error:", err);
         res.status(500).json({ success: false, message: '조회 중 오류가 발생했습니다.' }); 
     }
@@ -334,12 +346,21 @@ app.put('/api/admin/account', async (req, res) => {
 // [API] 6. 공지사항 관리
 app.get('/api/admin/announcements', async (req, res) => {
     const { admin } = req.query;
+    const sqlBase = `SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC`;
+    
     try {
         const prefix = admin === 'true' ? 'WITH _nc AS (SELECT 1) ' : '';
         // 프론트엔드가 createdAt 속성을 사용하므로 AS로 이름 매핑
-        const [rows] = await pool.query(`${prefix}SELECT id, title, content, created_at AS createdAt FROM announcements ORDER BY id DESC`);
+        const [rows] = await pool.query(prefix + sqlBase);
         res.json({ success: true, list: rows });
     } catch (err) { 
+        // 🛡️ 슬레이브 사망 시 마스터 DB로 재시도
+        if (admin !== 'true') {
+            try {
+                const [fallbackRows] = await pool.query('WITH _nc AS (SELECT 1) ' + sqlBase);
+                return res.json({ success: true, list: fallbackRows });
+            } catch (fallbackErr) {}
+        }
         console.error("Announcements Get Error:", err);
         res.status(500).json({ success: false }); 
     }
