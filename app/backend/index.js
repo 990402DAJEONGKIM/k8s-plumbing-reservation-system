@@ -73,7 +73,11 @@ app.post('/api/reservations', async (req, res) => {
         );
 
         res.json({ success: true, resNumber });
-    } catch (err) { res.status(500).json({ success: false, message: '예약 접수 중 오류가 발생했습니다.' }); }
+    } catch (err) { 
+        // DB 쓰기 실패 (마스터/슬레이브 모두 다운 등) 시 읽기 전용 상태 안내
+        console.error("DB Write Error:", err);
+        res.status(503).json({ success: false, message: '현재 시스템 복구 중으로 읽기만 가능합니다. 잠시 후 다시 시도해 주세요.' }); 
+    }
 });
 
 // [API] 1. 예약 관리 (조회 페이지도 이 API를 사용함)
@@ -89,7 +93,7 @@ app.get('/api/admin/reservations', async (req, res) => {
             params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
         }
         sql += ' ORDER BY reservation_datetime IS NULL ASC, reservation_datetime ASC, created_at DESC';
-        const [rows] = await pool.execute(sql, params);
+        const [rows] = await pool.query(sql, params);
         res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
 });
@@ -116,7 +120,7 @@ app.get('/api/admin/calendar', async (req, res) => {
             GROUP BY DATE_FORMAT(DATE_ADD(reservation_datetime, INTERVAL 9 HOUR), '%Y-%m-%d')
             ORDER BY date ASC
         `;
-        const [rows] = await pool.execute(sql);
+        const [rows] = await pool.query(sql);
         res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
 });
@@ -131,7 +135,7 @@ app.get('/api/admin/customers', async (req, res) => {
                    FROM customers c WHERE 1=1`;
         const params = [];
         if (search) { sql += ' AND (customer_name LIKE ? OR phone_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-        const [rows] = await pool.execute(sql, params);
+        const [rows] = await pool.query(sql, params);
         res.json({ success: true, list: rows });
     } catch (err) { res.status(500).json({ success: false }); }
 });
@@ -276,7 +280,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
 // [API] 5. 관리자 계정
 app.get('/api/admin/account', async (req, res) => {
     try {
-        const [rows] = await pool.execute('SELECT username FROM admin_users LIMIT 1');
+        const [rows] = await pool.query('SELECT username FROM admin_users LIMIT 1');
         if (rows.length > 0) res.json({ success: true, username: rows[0].username });
         else res.json({ success: false, message: '계정 정보가 없습니다.' });
     } catch (err) { res.status(500).json({ success: false }); }

@@ -26,8 +26,15 @@ export default function Home() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (res.ok) setSubmittedNumber(data.resNumber);
-    } catch (err) { alert("서버 연결 실패!"); }
+      if (res.ok && data.success) {
+        setSubmittedNumber(data.resNumber);
+      } else {
+        alert(data.message || "오류가 발생했습니다.");
+      }
+    } catch (err) { 
+      // 백엔드 서버 자체가 죽었을 경우에 대한 폴백 처리
+      alert("현재 시스템 복구 중으로 읽기만 가능합니다. 잠시 후 다시 시도해 주세요."); 
+    }
   };
 
   return (
