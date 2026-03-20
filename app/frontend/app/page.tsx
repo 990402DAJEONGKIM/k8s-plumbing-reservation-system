@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X } from 'lucide-react';
+import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X, AlertCircle } from 'lucide-react';
 import { useAnnouncements } from '../lib/hooks';
 
 export default function Home() {
   const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수', reservation_datetime: '' });
   const [submittedNumber, setSubmittedNumber] = useState('');
   const [showPopup, setShowPopup] = useState(false);
+  const [isSystemDown, setIsSystemDown] = useState(false);
   const announcements = useAnnouncements();
 
   useEffect(() => {
@@ -25,6 +26,13 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
+
+      // DB 장애로 인한 503 에러 수신 시 폼 차단 및 점검 UI 표시
+      if (res.status === 503) {
+        setIsSystemDown(true);
+        return;
+      }
+
       const data = await res.json();
       if (res.ok && data.success) {
         setSubmittedNumber(data.resNumber);
@@ -32,8 +40,8 @@ export default function Home() {
         alert(data.message || "오류가 발생했습니다.");
       }
     } catch (err) { 
-      // 백엔드 서버 자체가 죽었을 경우에 대한 폴백 처리
-      alert("현재 시스템 복구 중으로 읽기만 가능합니다. 잠시 후 다시 시도해 주세요."); 
+      // 서버 통신 완전 단절 시에도 점검 화면 표시
+      setIsSystemDown(true);
     }
   };
 
@@ -109,21 +117,38 @@ export default function Home() {
           </div>
           <div className="bg-[#2b1c6d] p-10 shadow-2xl rounded-sm border-t-8 border-red-600">
             <h3 className="text-3xl font-black text-white mb-8 italic flex items-center gap-3"><Send className="text-red-500" /> ONLINE ESTIMATE</h3>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Name</label><input type="text" placeholder="성함" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, name: e.target.value})} /></div>
-                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Phone</label><input type="text" placeholder="연락처" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, phone: e.target.value})} /></div>
+            {isSystemDown ? (
+              <div className="py-12 flex flex-col items-center text-center animate-in fade-in zoom-in duration-500">
+                <div className="bg-red-600/20 p-6 rounded-full mb-6 text-red-500 animate-pulse">
+                  <AlertCircle size={64} />
+                </div>
+                <h4 className="text-3xl font-black text-white mb-4 italic tracking-tighter">시스템 긴급 점검 중</h4>
+                <p className="text-gray-300 font-bold leading-relaxed mb-8 text-sm">
+                  현재 데이터베이스 서버 장애로 인해<br />신규 예약 접수가 일시적으로 중단되었습니다.<br/>
+                  최대한 빠른 시간 내에 복구하겠습니다.<br/>
+                  <span className="text-red-400 mt-2 block">(※ 기존 예약 조회는 정상적으로 이용 가능합니다.)</span>
+                </p>
+                <button onClick={() => setIsSystemDown(false)} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-bold transition uppercase text-xs tracking-widest border border-white/20">
+                  돌아가기
+                </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Address</label><input type="text" placeholder="상세 주소" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, address: e.target.value})} /></div>
-                <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Date & Time</label><input type="datetime-local" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, reservation_datetime: e.target.value})} /></div>
-              </div>
-              <select className="w-full p-5 bg-white text-black font-black outline-none border-b-8 border-red-600" onChange={e => setForm({...form, issueType: e.target.value})}>
-                <option>누수/방수</option><option>변기/하수구 막힘</option><option>보일러/배관 청소</option>
-              </select>
-              <button className="w-full bg-red-600 text-white p-5 font-black text-2xl hover:bg-red-700 transition shadow-xl uppercase tracking-tighter">Get Started Now</button>
-            </form>
-            {submittedNumber && (
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Name</label><input type="text" placeholder="성함" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, name: e.target.value})} /></div>
+                  <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Phone</label><input type="text" placeholder="연락처" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, phone: e.target.value})} /></div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Address</label><input type="text" placeholder="상세 주소" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, address: e.target.value})} /></div>
+                  <div className="bg-white p-2"><label className="text-[10px] font-black text-gray-400 block px-2 uppercase">Date & Time</label><input type="datetime-local" className="w-full p-2 text-black font-bold outline-none" required onChange={e => setForm({...form, reservation_datetime: e.target.value})} /></div>
+                </div>
+                <select className="w-full p-5 bg-white text-black font-black outline-none border-b-8 border-red-600" onChange={e => setForm({...form, issueType: e.target.value})}>
+                  <option>누수/방수</option><option>변기/하수구 막힘</option><option>보일러/배관 청소</option>
+                </select>
+                <button className="w-full bg-red-600 text-white p-5 font-black text-2xl hover:bg-red-700 transition shadow-xl uppercase tracking-tighter">Get Started Now</button>
+              </form>
+            )}
+            {submittedNumber && !isSystemDown && (
               <div className="mt-8 p-6 bg-white border-4 border-red-600 text-center animate-bounce shadow-2xl text-black">
                 <p className="font-black text-lg mb-1 italic">CODE: <span className="text-red-600">{submittedNumber}</span></p>
                 <a href="/status" className="text-xs text-blue-600 font-bold underline">상태 조회하러 가기</a>
