@@ -35,7 +35,8 @@ app.use((req, res, next) => {
 app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;
     try {
-        const [rows] = await pool.execute('SELECT * FROM admin_users WHERE username = ? AND password = ?', [username, password]);
+        // 💡 로그인 시 캐시된 빈 데이터를 가져오지 않도록 강제 우회
+        const [rows] = await pool.execute('/* NO_CACHE */ SELECT * FROM admin_users WHERE username = ? AND password = ?', [username, password]);
         if (rows.length > 0) {
             // 실제로는 JWT 토큰 등 발급
             res.json({ success: true, message: '로그인 성공' });
