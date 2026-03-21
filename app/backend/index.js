@@ -24,8 +24,8 @@ let isMaintenance = false;
 
 // 🛡️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
 app.use((req, res, next) => {
-    // 설정 변경 API(/api/admin/settings)를 제외한 모든 요청은 점검 시 503 차단
-    if (isMaintenance && !req.path.includes('/api/admin/settings')) {
+    // 💡 점검 모드라도 GET(조회) 요청은 허용, 쓰기/수정/삭제 요청(POST, PUT, PATCH, DELETE)만 차단
+    if (isMaintenance && req.method !== 'GET' && !req.path.includes('/api/admin/settings')) {
         return res.status(503).json({ success: false, message: "현재 서버 점검 중입니다." });
     }
     next();
