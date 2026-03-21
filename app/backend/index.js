@@ -22,7 +22,7 @@ const pool = mysql.createPool(dbConfig);
 let errorLogs = [];
 let isMaintenance = false;
 
-// 🛡️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
+// �️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
 app.use((req, res, next) => {
     // 💡 점검 모드라도 GET(조회) 요청은 허용, 쓰기/수정/삭제 요청(POST, PUT, PATCH, DELETE)만 차단
     if (isMaintenance && req.method !== 'GET' && !req.path.includes('/api/admin/settings')) {

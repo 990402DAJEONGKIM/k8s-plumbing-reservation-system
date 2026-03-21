@@ -1,23 +1,55 @@
-# 1. DB Service
+# 1. ProxySQL PVC (영구 볼륨)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: proxysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# 2. ProxySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plumbing-proxysql
+spec:
+  replicas: 1 # 💡 데이터 충돌 방지를 위해 단일 파드로 운영하며, K8s 자동 복구(Self-Healing) 활용
+  selector:
+    matchLabels:
+      app: plumbing-proxysql
+  template:
+    metadata:
+      labels:
+        app: plumbing-proxysql
+    spec:
+      containers:
+        - name: proxysql
+          image: proxysql/proxysql:latest
+          ports:
+            - containerPort: 6032
+            - containerPort: 6033
+          volumeMounts:
+            - name: proxysql-data
+              mountPath: /var/lib/proxysql
+      volumes:
+        - name: proxysql-data
+          persistentVolumeClaim:
+            claimName: proxysql-pvc
+---
+# 3. DB Service (ProxySQL 연결)
 apiVersion: v1
 kind: Service
 metadata:
   name: plumbing-db-svc
 spec:
+  selector:
+    app: plumbing-proxysql # 외부 Endpoints 대신 K8s 내부의 ProxySQL 파드를 바라보게 수정
   ports:
     - port: 3306
       targetPort: 6033
----
-# DB - K8S와 연결하는 Endpoints 추가 (외부 IP 등록)
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: plumbing-db-svc
-subsets:
-  - addresses:
-      - ip: 172.16.0.2  # proxySQL 설치한 서버의 IP
-    ports:
-      - port: 6033      # ProxySQL의 서비스 포트 (보통 6033)
 ---
 ### 2. Backend (Node.js) ###
 apiVersion: apps/v1
