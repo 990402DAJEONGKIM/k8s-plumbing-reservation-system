@@ -75,6 +75,39 @@ jobs:
           echo "K8s 매니페스트(YAML) 최신 설정 적용 중..."
           kubectl apply -f app/plumbing-app.yaml
 
+          echo "ProxySQL 파드 실행 완료 대기 중..."
+          kubectl rollout status deployment plumbing-proxysql
+
+          echo "ProxySQL 자동 초기 설정 진행 중..."
+          # 실행 중인 ProxySQL 파드의 이름을 가져옴
+          POD_NAME=$(kubectl get pods -l app=plumbing-proxysql -o jsonpath='{.items[0].metadata.name}')
+          
+          # 파드 내부로 접속하여 설정 쿼리를 즉시 실행 (멱등성 보장: 여러 번 실행해도 안전함)
+          kubectl exec $POD_NAME -- mysql -u admin -padmin -h 127.0.0.1 -P 6032 -e "
+            DELETE FROM mysql_servers;
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (10, '172.16.0.7', 3306, 1000, 0); 
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (10, '172.16.0.8', 3306, 1, 10);    
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (20, '172.16.0.8', 3306, 1000, 10); 
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (20, '172.16.0.7', 3306, 1, 0);    
+            UPDATE mysql_servers SET status = 'ONLINE';
+            DELETE FROM mysql_users;
+            INSERT INTO mysql_users(username, password, default_hostgroup) VALUES ('root', '8850', 10);
+            UPDATE global_variables SET variable_value='monitor_user' WHERE variable_name='mysql-monitor_username';
+            UPDATE global_variables SET variable_value='monitor_password' WHERE variable_name='mysql-monitor_password';
+            UPDATE global_variables SET variable_value='2000' WHERE variable_name='mysql-monitor_ping_interval';
+            UPDATE global_variables SET variable_value='100000' WHERE variable_name='mysql-max_connections_errors';
+            UPDATE global_variables SET variable_value='5' WHERE variable_name='mysql-shun_recovery_time_sec';
+            DELETE FROM mysql_query_rules;
+            INSERT INTO mysql_query_rules (rule_id, active, match_digest, destination_hostgroup, apply) VALUES (1, 1, '^SELECT.*FOR UPDATE$', 10, 1);
+            INSERT INTO mysql_query_rules (rule_id, active, match_digest, destination_hostgroup, cache_ttl, apply) VALUES (2, 1, '^SELECT', 20, 3600000, 1);
+            INSERT INTO mysql_query_rules (rule_id, active, match_digest, destination_hostgroup, apply) VALUES (3, 1, '.*', 10, 1);
+            LOAD MYSQL SERVERS TO RUNTIME; SAVE MYSQL SERVERS TO DISK;
+            LOAD MYSQL USERS TO RUNTIME; SAVE MYSQL USERS TO DISK;
+            LOAD MYSQL VARIABLES TO RUNTIME; SAVE MYSQL VARIABLES TO DISK;
+            LOAD MYSQL QUERY RULES TO RUNTIME; SAVE MYSQL QUERY RULES TO DISK;
+          "
+          echo "ProxySQL 설정 완료!"
+
           echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-backend
