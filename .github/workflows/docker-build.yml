@@ -60,7 +60,7 @@ jobs:
               && rm /tmp/orch.tar.gz
           WORKDIR /usr/local/orchestrator
           EXPOSE 3000
-          CMD ["./orchestrator", "http"]
+          CMD ["./orchestrator", "--config=/etc/orchestrator.conf.json", "http"]
           EOF
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest .
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
@@ -342,7 +342,7 @@ jobs:
             orchestrator.conf.json: |
               {
                 "ListenAddress": ":3000",
-                "BackendDB": "sqlite",
+                "BackendDB": "sqlite3",
                 "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3",
                 "MySQLTopologyUser": "orchestrator_user",
                 "MySQLTopologyPassword": "orch_password_123",
@@ -398,6 +398,7 @@ jobs:
                 - name: orchestrator
                   # 💡 위에서 직접 빌드해서 내 저장소에 올린 이미지를 사용!
                   image: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
+                  imagePullPolicy: Always # 💡 K8s가 예전 이미지를 재사용하지 않고 항상 방금 만든 최신 이미지를 가져오도록 강제
                   ports:
                   - containerPort: 3000
                   volumeMounts:
