@@ -39,6 +39,9 @@ app.use((req, res, next) => {
     next();
 });
 
+// [API] Health Check (K8s Liveness/Readiness Probe 용도)
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 // [API] 0. 로그인 (간단한 예시)
 app.post('/api/admin/login', async (req, res) => {
     const { username, password } = req.body;

@@ -42,6 +42,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_URL=https://www.plumbing.local
             NEXT_PUBLIC_GRAFANA_URL=https://grafana.plumbing.local
+            NEXT_PUBLIC_ORCHESTRATOR_URL=http://orchestrator.plumbing.local
           provenance: false # 💡 Docker Hub와 K8s의 SHA 해시값이 다르게 보이는 현상 방지
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max

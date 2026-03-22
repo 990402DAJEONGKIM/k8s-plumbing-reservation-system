@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { 
-  ClipboardList, Calendar, Users, Activity, Settings, 
+  ClipboardList, Calendar, Users, Activity, Settings, Network,
   Search, HeartPulse, CheckCircle2, Truck, Wrench, History, X,
   AlertCircle, Download, Bell, BellOff, Server, Megaphone, Edit, Trash2,
   Database, Cloud, Globe, ShieldCheck
@@ -484,14 +484,24 @@ export default function AdminDashboard() {
             <div className="space-y-10 animate-in fade-in">
               <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
-                <button onClick={() => {
-                   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || `http://${window.location.hostname}:30000`;
-                   window.open(grafanaUrl, '_blank');
-                }} 
-                   className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-orange-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-orange-500/30">
-                  <Activity size={18} />
-                  Deep Dive in Grafana
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => {
+                     const orchUrl = process.env.NEXT_PUBLIC_ORCHESTRATOR_URL || `http://orchestrator.plumbing.local`;
+                     window.open(orchUrl, '_blank');
+                  }} 
+                     className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-emerald-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-emerald-500/30">
+                    <Network size={18} />
+                    DB Topology (Orchestrator)
+                  </button>
+                  <button onClick={() => {
+                     const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || `http://${window.location.hostname}:30000`;
+                     window.open(grafanaUrl, '_blank');
+                  }} 
+                     className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-orange-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-orange-500/30">
+                    <Activity size={18} />
+                    Deep Dive in Grafana
+                  </button>
+                </div>
               </div>
               
               {sysStats.metrics && (
