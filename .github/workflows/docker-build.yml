@@ -107,7 +107,7 @@ jobs:
           cat <<EOF > mysql-master-values.yaml
           mysql:
             user: "exporter"
-            password: "exporter_pass_123"
+            pass: "exporter_pass_123"
             host: "172.16.0.7"
             port: 3306
             db: "?tls=false"
@@ -123,7 +123,7 @@ jobs:
           cat <<EOF > mysql-slave-values.yaml
           mysql:
             user: "exporter"
-            password: "exporter_pass_123"
+            pass: "exporter_pass_123"
             host: "172.16.0.8"
             port: 3306
             db: "?tls=false"
