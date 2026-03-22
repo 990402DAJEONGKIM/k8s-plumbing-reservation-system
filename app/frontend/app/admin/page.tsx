@@ -599,7 +599,16 @@ export default function AdminDashboard() {
                           return (
                             <tr key={idx} className={`hover:bg-slate-50 transition ${isError ? 'bg-rose-50/30' : ''}`}>
                               <td className="p-4 font-black text-slate-800"><span className={`px-2 py-0.5 rounded-md text-[10px] text-white tracking-widest ${db.group === 10 ? 'bg-indigo-500' : 'bg-emerald-500'}`}>{db.group}</span><span className="ml-2">{db.role}</span></td>
-                              <td className="p-4 text-sm text-slate-600 font-mono">{db.ip}</td>
+                              <td className="p-4 text-sm text-slate-600 font-mono flex items-center gap-2">
+                                {db.ip}
+                                {db.status === 'ONLINE' && db.weight > 10 ? (
+                                  db.group === 10 
+                                    ? <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1 animate-pulse">🔥 ACTIVE WRITER</span>
+                                    : <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center gap-1">🟢 ACTIVE READER</span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-slate-100 text-slate-400 border border-slate-200 flex items-center gap-1">💤 STANDBY</span>
+                                )}
+                              </td>
                               <td className={`p-4 font-black text-sm ${db.status === 'ONLINE' ? 'text-emerald-500' : 'text-rose-500'}`}>{db.status} <span className="text-slate-400 font-bold">({db.weight})</span></td>
                               <td className="p-4 text-sm font-black text-indigo-600">{db.connUsed ?? 0}</td>
                               <td className="p-4 text-sm font-black text-blue-500">{db.queries?.toLocaleString() ?? 0}</td>

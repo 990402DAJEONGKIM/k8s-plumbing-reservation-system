@@ -165,7 +165,7 @@ jobs:
           echo "ProxySQL 설정 완료!"
 
           echo "MySQL Exporter 모니터링 전용 DB 계정 자동 생성 중..."
-          kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 -e "
+          kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 --ssl-mode=DISABLED -e "
             CREATE USER IF NOT EXISTS 'exporter'@'%' IDENTIFIED BY 'exporter_pass_123';
             GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
             FLUSH PRIVILEGES;
