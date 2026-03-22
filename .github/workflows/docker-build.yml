@@ -101,6 +101,36 @@ jobs:
           # Helm을 이용해 기존 모니터링 스택에 익명 접근 설정만 안전하게 덮어쓰기
           helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f grafana-anon.yaml
 
+          echo "MySQL Exporter (Master & Slave) 설정 및 자동 배포 진행 중..."
+          cat <<EOF > mysql-master-values.yaml
+          mysql:
+            user: "exporter"
+            password: "exporter_pass_123"
+            host: "172.16.0.7"
+            port: 3306
+          serviceMonitor:
+            enabled: true
+            namespace: monitoring
+            interval: 15s
+            scrapeTimeout: 10s
+          EOF
+          
+          cat <<EOF > mysql-slave-values.yaml
+          mysql:
+            user: "exporter"
+            password: "exporter_pass_123"
+            host: "172.16.0.8"
+            port: 3306
+          serviceMonitor:
+            enabled: true
+            namespace: monitoring
+            interval: 15s
+            scrapeTimeout: 10s
+          EOF
+          
+          helm upgrade --install mysql-exporter-master prometheus-community/prometheus-mysql-exporter --namespace monitoring -f mysql-master-values.yaml
+          helm upgrade --install mysql-exporter-slave prometheus-community/prometheus-mysql-exporter --namespace monitoring -f mysql-slave-values.yaml
+
           echo "ProxySQL 파드 실행 완료 대기 중..."
           kubectl rollout status deployment plumbing-proxysql
 
@@ -133,6 +163,13 @@ jobs:
             LOAD MYSQL QUERY RULES TO RUNTIME; SAVE MYSQL QUERY RULES TO DISK;
           "
           echo "ProxySQL 설정 완료!"
+
+          echo "MySQL Exporter 모니터링 전용 DB 계정 자동 생성 중..."
+          kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 -e "
+            CREATE USER IF NOT EXISTS 'exporter'@'%' IDENTIFIED BY 'exporter_pass_123';
+            GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+            FLUSH PRIVILEGES;
+          "
 
           echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
