@@ -90,6 +90,8 @@ jobs:
             prometheusSpec:
               serviceMonitorSelectorNilUsesHelmValues: false
               serviceMonitorSelector: {}
+              scrapeInterval: 15s # 💡 프로메테우스가 데이터를 수집하는 기본 주기 15초로 단축
+              evaluationInterval: 15s # 💡 프로메테우스가 알람 규칙을 검사하는 주기 15초로 단축
               additionalScrapeConfigs:
                 - job_name: 'vmware-nodes'
                   static_configs:
@@ -101,9 +103,13 @@ jobs:
                       - '172.16.0.3:9100' 
           alertmanager:
             config:
+              global:
+                resolve_timeout: 1m
               route:
                 receiver: 'infra-test' # 💡 기본 수신처 (아래 설정한 name과 똑같이 맞춤)
                 group_by: ['alertname']
+                group_wait: 10s # 💡 알람 최초 발생 시 10초만 대기 후 즉시 발송
+                group_interval: 15s # 💡 알람 업데이트/해결 시 15초 간격으로 즉시 갱신
                 routes:
                   - matchers:
                       - severity="critical"
