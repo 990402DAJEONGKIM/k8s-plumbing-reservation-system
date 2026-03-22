@@ -329,6 +329,7 @@ jobs:
                 "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3",
                 "MySQLTopologyUser": "orchestrator_user",
                 "MySQLTopologyPassword": "orch_password_123",
+                "MySQLTopologySSLMode": "disabled",
                 "DiscoverByShowSlaveHosts": true,
                 "InstancePollSeconds": 5,
                 "RecoverMasterClusterFilters": ["*"],
@@ -428,6 +429,30 @@ jobs:
                       name: orchestrator-svc
                       port:
                         number: 3000
+          EOF
+          cat <<EOF >> orchestrator-app.yaml # Append to the existing orchestrator-app.yaml
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: mysql-s
+            namespace: default
+          spec:
+            ports:
+              - protocol: TCP
+                port: 3306
+                targetPort: 3306
+          ---
+          apiVersion: v1
+          kind: Endpoints
+          metadata:
+            name: mysql-s
+            namespace: default
+          subsets:
+            - addresses:
+                - ip: 172.16.0.8
+              ports:
+                - port: 3306
           EOF
           kubectl apply -f orchestrator-app.yaml
 

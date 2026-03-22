@@ -88,7 +88,7 @@ app.post('/api/reservations', async (req, res) => {
         res.json({ success: true, resNumber });
     } catch (err) { 
         // DB 쓰기 실패 (마스터/슬레이브 모두 다운 등) 시 읽기 전용 상태 안내
-        console.error("DB Write Error:", err);
+        console.error("DB Write Error:", err.message);
         res.status(503).json({ success: false, message: '현재 시스템 복구 중으로 읽기만 가능합니다. 잠시 후 다시 시도해 주세요.' }); 
     }
 });

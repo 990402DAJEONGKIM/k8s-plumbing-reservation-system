@@ -42,6 +42,7 @@ export default function Home() {
     } catch (err) { 
       // 서버 통신 완전 단절 시에도 점검 화면 표시
       setIsSystemDown(true);
+      console.error("Failed to reserve", err.message);
     }
   };
 
