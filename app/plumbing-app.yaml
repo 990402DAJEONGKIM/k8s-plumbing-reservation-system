@@ -26,6 +26,14 @@ spec:
       labels:
         app: plumbing-proxysql
     spec:
+      # 💡 [핵심 방어 1] NFS 볼륨 마운트 시 권한 문제(Permission Denied)로 인한 CrashLoop 방지
+      initContainers:
+        - name: fix-nfs-permissions
+          image: busybox
+          command: ["sh", "-c", "chmod -R 777 /var/lib/proxysql"]
+          volumeMounts:
+            - name: proxysql-data
+              mountPath: /var/lib/proxysql
       containers:
         - name: proxysql
           image: proxysql/proxysql:latest
