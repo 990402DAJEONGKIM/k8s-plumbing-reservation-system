@@ -257,11 +257,15 @@ jobs:
           # 파드 내부로 접속하여 설정 쿼리를 즉시 실행 (멱등성 보장: 여러 번 실행해도 안전함)
           kubectl exec $POD_NAME -- mysql -u admin -padmin -h 127.0.0.1 -P 6032 -e "
             DELETE FROM mysql_servers;
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (10, '172.16.0.7', 3306, 1000, 0); 
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (10, '172.16.0.8', 3306, 1, 10);    
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (20, '172.16.0.8', 3306, 1000, 10); 
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port, weight, max_replication_lag) VALUES (20, '172.16.0.7', 3306, 1, 0);    
+            # 💡 Replication Hostgroup 사용 시, 서버를 한 번만 등록해두면 ProxySQL이 read_only 값을 보고 10(Writer)과 20(Reader) 사이를 알아서 이동시킵니다.
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (10, '172.16.0.7', 3306); 
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (20, '172.16.0.8', 3306); 
             UPDATE mysql_servers SET status = 'ONLINE';
+            
+            # 💡 Read-Only 기반 자동 라우팅 활성화 (10번은 Writer, 20번은 Reader)
+            DELETE FROM mysql_replication_hostgroups;
+            INSERT INTO mysql_replication_hostgroups (writer_hostgroup, reader_hostgroup, comment) VALUES (10, 20, 'Master-Slave HA');
+            
             DELETE FROM mysql_users;
             INSERT INTO mysql_users(username, password, default_hostgroup) VALUES ('root', '8850', 10);
             UPDATE global_variables SET variable_value='monitor_user' WHERE variable_name='mysql-monitor_username';
@@ -281,12 +285,125 @@ jobs:
           echo "ProxySQL 설정 완료!"
 
           echo "MySQL Exporter 모니터링 전용 DB 계정 자동 생성 중..."
-          kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 --skip-ssl -e "
+          # 💡 [Failover 대응] 172.16.0.7이 Read-Only(Slave) 상태로 전환되었을 경우를 대비하여
+          # 실패 시 172.16.0.8(새 Master)에 계정 생성을 시도하고, 그래도 실패하면 파이프라인이 멈추지 않게 방어
+          (kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 --skip-ssl -e "
             DROP USER IF EXISTS 'exporter'@'%';
             CREATE USER 'exporter'@'%' IDENTIFIED WITH mysql_native_password BY 'exporter_pass_123';
             GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
             FLUSH PRIVILEGES;
-          "
+          ") || (kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.8 -P 3306 --skip-ssl -e "
+            DROP USER IF EXISTS 'exporter'@'%';
+            CREATE USER 'exporter'@'%' IDENTIFIED WITH mysql_native_password BY 'exporter_pass_123';
+            GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+            FLUSH PRIVILEGES;
+          ") || echo "⚠️ DB 계정 생성 건너뜀 (이미 생성되었거나 양쪽 모두 Read-Only 상태입니다.)"
+
+          echo "Orchestrator DB 관제 계정 자동 생성 중..."
+          (kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 --skip-ssl -e "
+            CREATE USER IF NOT EXISTS 'orchestrator_user'@'%' IDENTIFIED BY 'orch_password_123';
+            GRANT SUPER, PROCESS, REPLICATION SLAVE, REPLICATION CLIENT, RELOAD ON *.* TO 'orchestrator_user'@'%';
+            GRANT SELECT, INSERT, UPDATE, DELETE ON mysql.slave_master_info TO 'orchestrator_user'@'%';
+            FLUSH PRIVILEGES;
+          ") || (kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.8 -P 3306 --skip-ssl -e "
+            CREATE USER IF NOT EXISTS 'orchestrator_user'@'%' IDENTIFIED BY 'orch_password_123';
+            GRANT SUPER, PROCESS, REPLICATION SLAVE, REPLICATION CLIENT, RELOAD ON *.* TO 'orchestrator_user'@'%';
+            GRANT SELECT, INSERT, UPDATE, DELETE ON mysql.slave_master_info TO 'orchestrator_user'@'%';
+            FLUSH PRIVILEGES;
+          ") || echo "⚠️ Orchestrator 계정 생성 건너뜀"
+
+          echo "Orchestrator (Auto-Failover) 및 Ingress 매니페스트 적용 중..."
+          cat <<EOF > orchestrator-app.yaml
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: orchestrator-config
+            namespace: default
+          data:
+            orchestrator.conf.json: |
+              {
+                "ListenAddress": ":3000",
+                "BackendDB": "sqlite",
+                "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3",
+                "MySQLTopologyUser": "orchestrator_user",
+                "MySQLTopologyPassword": "orch_password_123",
+                "DiscoverByShowSlaveHosts": true,
+                "InstancePollSeconds": 5,
+                "RecoverMasterClusterFilters": ["*"],
+                "RecoverIntermediateMasterClusterFilters": ["*"],
+                "ApplyMySQLPromotionAfterMasterFailover": true,
+                "PreventCrossDataCenterMasterFailover": false,
+                "FailMasterPromotionIfSQLThreadNotUpToDate": true,
+                "DelayMasterPromotionIfSQLThreadNotUpToDate": true
+              }
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: plumbing-orchestrator
+            namespace: default
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: orchestrator
+            template:
+              metadata:
+                labels:
+                  app: orchestrator
+              spec:
+                containers:
+                - name: orchestrator
+                  image: github/orchestrator:3.2.6
+                  ports:
+                  - containerPort: 3000
+                  volumeMounts:
+                  - name: config-volume
+                    mountPath: /etc/orchestrator.conf.json
+                    subPath: orchestrator.conf.json
+                  - name: data-volume
+                    mountPath: /var/lib/orchestrator
+                volumes:
+                - name: config-volume
+                  configMap:
+                    name: orchestrator-config
+                - name: data-volume
+                  emptyDir: {}
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: orchestrator-svc
+            namespace: default
+          spec:
+            selector:
+              app: orchestrator
+            ports:
+            - port: 3000
+              targetPort: 3000
+          ---
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: orchestrator-ingress
+            namespace: default
+            annotations:
+              nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+          spec:
+            ingressClassName: nginx
+            rules:
+            - host: orchestrator.plumbing.local
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: orchestrator-svc
+                      port:
+                        number: 3000
+          EOF
+          kubectl apply -f orchestrator-app.yaml
 
           echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
