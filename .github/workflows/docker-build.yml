@@ -118,6 +118,9 @@ jobs:
             scrapeTimeout: 10s
             additionalLabels:
               release: monitoring
+            relabelings:
+              - targetLabel: instance
+                replacement: "172.16.0.7:3306"
           EOF
           
           cat <<EOF > mysql-slave-values.yaml
@@ -134,6 +137,9 @@ jobs:
             scrapeTimeout: 10s
             additionalLabels:
               release: monitoring
+            relabelings:
+              - targetLabel: instance
+                replacement: "172.16.0.8:3306"
           EOF
           
           helm upgrade --install mysql-exporter-master prometheus-community/prometheus-mysql-exporter --namespace monitoring -f mysql-master-values.yaml
