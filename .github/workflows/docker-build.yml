@@ -357,6 +357,8 @@ jobs:
             name: plumbing-orchestrator
             namespace: default
           spec:
+            strategy:
+              type: Recreate # 💡 기존 파드를 완전히 종료한 후 새 파드를 생성 (PVC Lock 충돌 완벽 방지)
             replicas: 1
             selector:
               matchLabels:

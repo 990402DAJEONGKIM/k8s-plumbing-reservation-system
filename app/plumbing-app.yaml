@@ -17,6 +17,8 @@ kind: Deployment
 metadata:
   name: plumbing-proxysql
 spec:
+  strategy:
+    type: Recreate # 💡 기존 파드를 완전히 종료한 후 새 파드를 생성 (PVC Lock 충돌 완벽 방지)
   replicas: 1 # 💡 데이터 충돌 방지를 위해 단일 파드로 운영하며, K8s 자동 복구(Self-Healing) 활용
   selector:
     matchLabels:
