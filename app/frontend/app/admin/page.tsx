@@ -38,6 +38,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (localStorage.getItem('admin_logged_in') === 'true') {
       setIsLoggedIn(true);
+      // 💡 새로고침 방어: 저장된 이전 탭 위치가 있으면 복구
+      const savedMenu = localStorage.getItem('admin_active_menu');
+      if (savedMenu) {
+        setActiveMenu(savedMenu);
+      }
     }
   }, []);
 
@@ -263,7 +268,7 @@ export default function AdminDashboard() {
         </div>
         <nav className="space-y-1.5 flex-grow">
           {['예약 관리', '일정 조회', '고객 관리', '공지사항 관리', '시스템 모니터링', '설정'].map((menu) => (
-            <button key={menu} onClick={() => {setActiveMenu(menu); setSearch('');}} 
+            <button key={menu} onClick={() => {setActiveMenu(menu); setSearch(''); localStorage.setItem('admin_active_menu', menu);}} 
               className={`w-full flex items-center gap-4 px-5 py-4 rounded-[20px] font-bold transition-all ${activeMenu === menu ? 'bg-indigo-600 shadow-lg' : 'text-slate-400 hover:bg-slate-800'}`}>
               {menu === '예약 관리' && <ClipboardList size={20}/>}
               {menu === '일정 조회' && <Calendar size={20}/>}
@@ -288,7 +293,7 @@ export default function AdminDashboard() {
             {config.isMaintenance && <span className="flex items-center gap-2 text-xs text-rose-500 animate-pulse"><Server size={14}/> 점검 모드 활성화 중</span>}
             <div className="text-sm">Admin: <span className="font-black text-indigo-600">{adminUsername}</span></div>
             <div className="text-sm">데이터 연동: <span className="text-indigo-600 font-black italic">Connected</span></div>
-            <button onClick={() => { localStorage.removeItem('admin_logged_in'); setIsLoggedIn(false); }} className="text-xs bg-slate-100 hover:bg-rose-100 hover:text-rose-600 px-4 py-2 rounded-xl font-black transition">
+            <button onClick={() => { localStorage.removeItem('admin_logged_in'); localStorage.removeItem('admin_active_menu'); setIsLoggedIn(false); }} className="text-xs bg-slate-100 hover:bg-rose-100 hover:text-rose-600 px-4 py-2 rounded-xl font-black transition">
               로그아웃
             </button>
           </div>

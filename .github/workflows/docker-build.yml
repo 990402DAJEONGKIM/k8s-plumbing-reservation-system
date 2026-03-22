@@ -124,13 +124,31 @@ jobs:
                     - alert: HighTrafficSpike
                       expr: sum(rate(mysql_global_status_queries[1m])) > 30
                       for: 1m
-                      labels: { severity: warning }
-                      annotations: { description: "웹사이트 트래픽이 폭주하여 DB 쿼리량이 30 QPS를 초과했습니다! (현재: {{ $value | humanize }} QPS)" }
+                      labels:
+                        severity: warning
+                      annotations:
+                        description: "웹사이트 트래픽이 폭주하여 DB 쿼리량이 30 QPS를 초과했습니다! (현재: {{ \$value | humanize }} QPS)"
                     - alert: DatabaseNodeDown
                       expr: mysql_up == 0
                       for: 1m
-                      labels: { severity: critical }
-                      annotations: { description: "데이터베이스 노드가 응답하지 않습니다! Failover 상태를 확인하세요." }
+                      labels:
+                        severity: critical
+                      annotations:
+                        description: "데이터베이스 노드가 응답하지 않습니다! Failover 상태를 확인하세요."
+                    - alert: InstanceDown
+                      expr: up == 0
+                      for: 1m
+                      labels:
+                        severity: critical
+                      annotations:
+                        description: "서버 노드({{ \$labels.instance }})가 응답하지 않습니다! 장비가 다운되었거나 네트워크가 끊어졌습니다."
+                    - alert: DiskSpaceFull
+                      expr: 100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100) > 90
+                      for: 5m
+                      labels:
+                        severity: critical
+                      annotations:
+                        description: "서버 노드({{ \$labels.instance }})의 디스크 사용량이 90%를 초과했습니다! (현재: {{ \$value | humanize }}%) 즉시 용량을 확보하세요."
           EOF
           
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
