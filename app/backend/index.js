@@ -310,11 +310,17 @@ app.get('/api/admin/monitor-data', async (req, res) => {
     // K8s 외부의 VMware 노드들을 예쁘게 표시하기 위해 수동 매핑 추가
     const ipToNodeName = {
         '172.16.0.7': 'mysql-m',
-        '172.16.0.8': 'mysql-s'
+        '172.16.0.8': 'mysql-s',
+        '172.16.0.2': 'bastion-m', // 💡 실제 bastion-m IP로 변경
+        '172.16.0.9': 'bastion-s', // 💡 실제 bastion-s IP로 변경
+        '172.16.0.3': 'nfs'        // 💡 실제 nfs IP로 변경
     };
     const nodeNameToIp = {
         'mysql-m': '172.16.0.7',
-        'mysql-s': '172.16.0.8'
+        'mysql-s': '172.16.0.8',
+        'bastion-m': '172.16.0.2', // 💡 실제 bastion-m IP로 변경
+        'bastion-s': '172.16.0.9', // 💡 실제 bastion-s IP로 변경
+        'nfs': '172.16.0.3'        // 💡 실제 nfs IP로 변경
     };
     if (nodeInfoVec) {
         nodeInfoVec.forEach(res => {
