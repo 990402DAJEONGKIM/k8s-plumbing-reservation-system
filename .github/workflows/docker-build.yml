@@ -114,22 +114,30 @@ jobs:
                   slack_configs:
                     - api_url: 'https://hooks.slack.com/services/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' # 🚨 1번 채널용 웹훅
                       send_resolved: true
-                      title: '[{{ .Status | toUpper }}] 🚨 {{ .GroupLabels.alertname }}'
+                      title: '{{ if eq .Status "firing" }}🚨 [FIRING]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
                       text: >-
                         {{ range .Alerts }}
                         *상세 내용:* {{ .Annotations.description }}
                         *발생 서버:* {{ .Labels.instance }}
                         {{ end }}
+                      actions:
+                        - type: button
+                          text: '🛠️ 관리자 대시보드 접속'
+                          url: 'https://www.plumbing.local'
                 - name: 'Slackbot'
                   slack_configs:
                     - api_url: 'https://hooks.slack.com/services/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' # 🚨 2번 담당자DM용 웹훅
                       send_resolved: true
-                      title: '[{{ .Status | toUpper }}] 🔥 FATAL ERROR: {{ .GroupLabels.alertname }}'
+                      title: '{{ if eq .Status "firing" }}🔥 [FATAL ERROR]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
                       text: >-
                         {{ range .Alerts }}
                         *상세 내용:* {{ .Annotations.description }}
                         *발생 서버:* {{ .Labels.instance }}
                         {{ end }}
+                      actions:
+                        - type: button
+                          text: '🛠️ 관리자 대시보드 접속'
+                          url: 'https://www.plumbing.local'
           additionalPrometheusRulesMap:
             custom-alerts:
               groups:
