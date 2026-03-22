@@ -291,7 +291,12 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         },
         // 🚧 MySQL, Keepalived, Blackbox 등은 추후 Exporter 설치 후 연동
         login: { vipStatus: 'MASTER (Active)', uptime: '99.99%' },
-        database: { qps: Math.floor(Math.random() * 50) + 300 + ' q/s', connections: Math.floor(Math.random() * 10) + 40, replicationLag: '0 sec' },
+        database: { 
+            qps: mysqlQps !== null ? Math.round(mysqlQps).toString() + ' q/s' : Math.floor(Math.random() * 50) + 300 + ' q/s (Mock)',
+            connections: mysqlConn !== null ? mysqlConn.toString() : Math.floor(Math.random() * 10) + 40 + ' (Mock)',
+            slowQueries: mysqlSlow !== null ? mysqlSlow.toFixed(2).toString() + ' /s' : '0.00 /s (Mock)',
+            replicationLag: mysqlReplLag !== null ? mysqlReplLag.toString() + ' sec' : '0 sec (Mock)'
+        },
         web: { latency: Math.floor(Math.random() * 20) + 30 + 'ms', httpStatus: '200 OK' }
     };
 
