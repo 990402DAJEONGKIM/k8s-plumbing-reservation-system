@@ -47,16 +47,12 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
           
-      # 💡 [핵심 방어] 외부 오픈소스 이미지가 삭제되는 장애(ImagePullBackOff) 원천 차단
-      # 공식 소스코드를 직접 당겨와서 나만의 이미지로 빌드하고 호스팅(Mirroring) 합니다.
-      - name: Build and push Orchestrator Image (Self-hosted Mirror)
-        uses: docker/build-push-action@v5
-        with:
-          context: https://github.com/github/orchestrator.git
-          file: Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
-          provenance: false
+      # 💡 [핵심 방어] 복잡한 소스코드 컴파일 대신, 안정적인 커뮤니티 완성본을 가져와 내 저장소에 영구 백업(Mirroring)
+      - name: Mirror Orchestrator Image
+        run: |
+          docker pull sjmcb/orchestrator:latest
+          docker tag sjmcb/orchestrator:latest ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
 
   deploy: # 새로운 배포 Job 추가
     runs-on: self-hosted # 💡 self-hosted runner 사용
