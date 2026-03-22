@@ -78,8 +78,8 @@ jobs:
           echo "K8s 매니페스트(YAML) 최신 설정 적용 중..."
           kubectl apply -f app/plumbing-app.yaml
 
-          echo "Grafana 익명 접근(Anonymous Access) 설정 적용 중..."
-          cat <<EOF > grafana-anon.yaml
+          echo "모니터링 전체 설정(Grafana, Alertmanager, Rules) 적용 중..."
+          cat <<EOF > monitoring-values.yaml
           grafana:
             grafana.ini:
               auth.anonymous:
@@ -96,15 +96,46 @@ jobs:
                     - targets: 
                       - '172.16.0.7:9100'
                       - '172.16.0.8:9100'
-                      - '172.16.0.2:9100' # 💡 실제 bastion-m IP로 변경하세요
-                      - '172.16.0.9:9100' # 💡 실제 bastion-s IP로 변경하세요
-                      - '172.16.0.3:9100' # 💡 실제 nfs IP로 변경하세요
+                      - '172.16.0.2:9100' 
+                      - '172.16.0.9:9100' 
+                      - '172.16.0.3:9100' 
+          alertmanager:
+            config:
+              global:
+                slack_api_url: 'https://hooks.slack.com/services/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' # 🚨 웹훅 URL로 반드시 변경!
+              route:
+                receiver: 'slack'
+                group_by: ['alertname']
+              receivers:
+                - name: 'slack'
+                  slack_configs:
+                    - send_resolved: true
+                      title: '[{{ .Status | toUpper }}] 🚨 {{ .GroupLabels.alertname }}'
+                      text: >-
+                        {{ range .Alerts }}
+                        *상세 내용:* {{ .Annotations.description }}
+                        *발생 서버:* {{ .Labels.instance }}
+                        {{ end }}
+          additionalPrometheusRulesMap:
+            custom-alerts:
+              groups:
+                - name: custom-alerts
+                  rules:
+                    - alert: HighTrafficSpike
+                      expr: sum(rate(mysql_global_status_queries[1m])) > 30
+                      for: 1m
+                      labels: { severity: warning }
+                      annotations: { description: "웹사이트 트래픽이 폭주하여 DB 쿼리량이 30 QPS를 초과했습니다! (현재: {{ $value | humanize }} QPS)" }
+                    - alert: DatabaseNodeDown
+                      expr: mysql_up == 0
+                      for: 1m
+                      labels: { severity: critical }
+                      annotations: { description: "데이터베이스 노드가 응답하지 않습니다! Failover 상태를 확인하세요." }
           EOF
           
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
           helm repo update
-          # Helm을 이용해 기존 모니터링 스택에 익명 접근 설정만 안전하게 덮어쓰기
-          helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f grafana-anon.yaml
+          helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f monitoring-values.yaml
 
           echo "MySQL Exporter (Master & Slave) 설정 및 자동 배포 진행 중..."
           cat <<EOF > mysql-master-values.yaml
