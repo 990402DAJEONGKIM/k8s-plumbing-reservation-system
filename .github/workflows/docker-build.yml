@@ -369,6 +369,8 @@ jobs:
               metadata:
                 labels:
                   app: orchestrator
+                annotations: # ConfigMap 내용 변경 시 파드 재시작을 강제하는 어노테이션 추가
+                  checksum/config: $(echo '{ "ListenAddress": ":3000", "BackendDB": "sqlite", "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3", "MySQLTopologyUser": "orchestrator_user", "MySQLTopologyPassword": "orch_password_123", "MySQLTopologySSLSkipVerify": true, "MySQLTopologySSLMode": "disabled", "DiscoverByShowSlaveHosts": true, "InstancePollSeconds": 5, "RecoverMasterClusterFilters": ["*"], "RecoverIntermediateMasterClusterFilters": ["*"], "ApplyMySQLPromotionAfterMasterFailover": true, "PreventCrossDataCenterMasterFailover": false, "FailMasterPromotionIfSQLThreadNotUpToDate": true, "DelayMasterPromotionIfSQLThreadNotUpToDate": false }' | sha256sum | awk '{print $1}')
               spec:
                 # 💡 [핵심 방어 1] NFS 볼륨 마운트 시 권한 문제(Permission Denied) 방지
                 initContainers:
