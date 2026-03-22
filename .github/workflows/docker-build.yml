@@ -459,6 +459,10 @@ jobs:
           EOF
           kubectl apply -f orchestrator-app.yaml
 
+          echo "plumbing-proxysql 디플로이먼트 롤아웃 재시작 시작..."
+          kubectl rollout restart deployment plumbing-proxysql
+          echo "plumbing-proxysql 롤아웃 완료 대기 중..."
+          kubectl rollout status deployment plumbing-proxysql
           echo "plumbing-orchestrator 디플로이먼트 롤아웃 재시작 시작..."
           kubectl rollout restart deployment plumbing-orchestrator
           echo "plumbing-orchestrator 롤아웃 완료 대기 중..."
