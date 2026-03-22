@@ -274,7 +274,13 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         queryPromVector('100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)'),
         queryPromVector('100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)'),
         queryPromVector('kube_node_status_condition{condition="Ready", status="true"}'),
-        queryPromVector('kube_node_info') // 💡 [추가] IP와 노드 이름 번역을 위한 메타데이터
+        queryPromVector('kube_node_info'), // 💡 [추가] IP와 노드 이름 번역을 위한 메타데이터
+        
+        // 💡 [복구] Prometheus MySQL Exporter 메트릭 호출 쿼리 추가
+        queryProm('sum(rate(mysql_global_status_queries[1m]))'),
+        queryProm('sum(mysql_global_status_threads_connected)'),
+        queryProm('sum(rate(mysql_global_status_slow_queries[1m]))'),
+        queryProm('max(mysql_slave_status_seconds_behind_master)')
     ]);
 
     // 2. 결과 조합 (데이터가 없으면 가상 데이터 반환)
@@ -292,10 +298,10 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         // 🚧 MySQL, Keepalived, Blackbox 등은 추후 Exporter 설치 후 연동
         login: { vipStatus: 'MASTER (Active)', uptime: '99.99%' },
         database: { 
-            qps: mysqlQps !== null ? Math.round(mysqlQps).toString() + ' q/s' : Math.floor(Math.random() * 50) + 300 + ' q/s (Mock)',
-            connections: mysqlConn !== null ? mysqlConn.toString() : Math.floor(Math.random() * 10) + 40 + ' (Mock)',
-            slowQueries: mysqlSlow !== null ? mysqlSlow.toFixed(2).toString() + ' /s' : '0.00 /s (Mock)',
-            replicationLag: mysqlReplLag !== null ? mysqlReplLag.toString() + ' sec' : '0 sec (Mock)'
+            qps: mysqlQps != null ? Math.round(mysqlQps).toString() + ' q/s' : Math.floor(Math.random() * 50) + 300 + ' q/s (Mock)',
+            connections: mysqlConn != null ? mysqlConn.toString() : Math.floor(Math.random() * 10) + 40 + ' (Mock)',
+            slowQueries: mysqlSlow != null ? mysqlSlow.toFixed(2).toString() + ' /s' : '0.00 /s (Mock)',
+            replicationLag: mysqlReplLag != null ? mysqlReplLag.toString() + ' sec' : '0 sec (Mock)'
         },
         web: { latency: Math.floor(Math.random() * 20) + 30 + 'ms', httpStatus: '200 OK' }
     };

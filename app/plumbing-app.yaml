@@ -176,3 +176,25 @@ spec:
                 name: plumbing-frontend-svc
                 port:
                   number: 3000
+---
+# 5. Grafana Ingress (그라파나 도메인 연결)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: monitoring # 💡 그라파나가 설치된 네임스페이스
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false" # 그라파나는 순수 HTTP 80 포트로 우선 노출
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.plumbing.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitoring-kube-prometheus-grafana
+                port:
+                  number: 80
