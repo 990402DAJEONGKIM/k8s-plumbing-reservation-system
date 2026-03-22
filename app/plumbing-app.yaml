@@ -4,6 +4,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: proxysql-pvc
 spec:
+  storageClassName: nfs-client
   accessModes:
     - ReadWriteOnce
   resources:

@@ -338,6 +338,19 @@ jobs:
                 "DelayMasterPromotionIfSQLThreadNotUpToDate": true
               }
           ---
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: orchestrator-pvc
+            namespace: default
+          spec:
+            storageClassName: nfs-client
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+          ---
           apiVersion: apps/v1
           kind: Deployment
           metadata:
@@ -355,7 +368,7 @@ jobs:
               spec:
                 containers:
                 - name: orchestrator
-                  image: github/orchestrator:3.2.6
+                  image: openark/orchestrator:3.2.6
                   ports:
                   - containerPort: 3000
                   volumeMounts:
@@ -369,7 +382,8 @@ jobs:
                   configMap:
                     name: orchestrator-config
                 - name: data-volume
-                  emptyDir: {}
+                  persistentVolumeClaim:
+                    claimName: orchestrator-pvc
           ---
           apiVersion: v1
           kind: Service
@@ -405,6 +419,58 @@ jobs:
                         number: 3000
           EOF
           kubectl apply -f orchestrator-app.yaml
+
+          echo "데이터베이스 자동 백업 CronJob(NFS 연동) 매니페스트 적용 중..."
+          cat <<EOF > db-backup-cronjob.yaml
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: db-backup-pvc
+            namespace: default
+          spec:
+            storageClassName: nfs-client
+            accessModes:
+              - ReadWriteMany
+            resources:
+              requests:
+                storage: 5Gi
+          ---
+          apiVersion: batch/v1
+          kind: CronJob
+          metadata:
+            name: db-backup-cronjob
+            namespace: default
+          spec:
+            schedule: "0 19 * * *" # 💡 UTC 19:00 = 한국 시간(KST) 새벽 4시
+            concurrencyPolicy: Forbid
+            successfulJobsHistoryLimit: 3
+            failedJobsHistoryLimit: 1
+            jobTemplate:
+              spec:
+                template:
+                  spec:
+                    containers:
+                    - name: backup-container
+                      image: mysql:8.0
+                      command: ["/bin/sh", "-c"]
+                      args:
+                        - |
+                          echo "데이터베이스 백업 시작..."
+                          DATE=\$(date +%Y%m%d_%H%M%S)
+                          mysqldump -h 172.16.0.7 -u root -p8850 --set-gtid-purged=OFF plumbing_db > /mnt/nfs_backup/plumbing_db_\$DATE.sql
+                          echo "백업 완료: /mnt/nfs_backup/plumbing_db_\$DATE.sql"
+                          find /mnt/nfs_backup -name "plumbing_db_*.sql" -type f -mtime +7 -exec rm {} \;
+                          echo "7일이 지난 오래된 백업 파일 정리 완료."
+                      volumeMounts:
+                      - name: backup-volume
+                        mountPath: /mnt/nfs_backup
+                    restartPolicy: OnFailure
+                    volumes:
+                    - name: backup-volume
+                      persistentVolumeClaim:
+                        claimName: db-backup-pvc
+          EOF
+          kubectl apply -f db-backup-cronjob.yaml
 
           echo "Docker Hub에서 최신 이미지 풀링을 위해 Deployment 재시작..."
           echo "plumbing-backend 디플로이먼트 롤아웃 재시작 시작..."
