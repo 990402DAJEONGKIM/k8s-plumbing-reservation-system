@@ -21,7 +21,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('ALL');
   const [data, setData] = useState({ reservations: [], customers: [], announcements: [], calendar: [] });
-  const [sysStats, setSysStats] = useState<any>({ metrics: null, nodeDetails: [], errCount: 0, logs: [] });
+  const [sysStats, setSysStats] = useState<any>({ metrics: null, nodeDetails: [], haStatus: [], errCount: 0, logs: [] });
   // 설정 상태
   const [config, setConfig] = useState({ isMaintenance: false, notificationEnabled: true });
   const [adminUsername, setAdminUsername] = useState('');
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
     const fetchMonitor = async () => {
       try {
         const result = await fetcher(`/api/admin/monitor-data?_t=${Date.now()}`);
-        if (result.success) setSysStats({ metrics: result.metrics, nodeDetails: result.nodeDetails, errCount: result.errCount, logs: result.logs });
+        if (result.success) setSysStats({ metrics: result.metrics, nodeDetails: result.nodeDetails, haStatus: result.haStatus, errCount: result.errCount, logs: result.logs });
       } catch (e) { console.error("Monitor Failed"); }
     };
     fetchMonitor();
@@ -477,7 +477,14 @@ export default function AdminDashboard() {
 
           {activeMenu === '시스템 모니터링' && (
             <div className="space-y-10 animate-in fade-in">
-              <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
+                <a href={process.env.NEXT_PUBLIC_GRAFANA_URL || 'http://localhost:30000'} target="_blank" rel="noopener noreferrer" 
+                   className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-orange-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-orange-500/30">
+                  <Activity size={18} />
+                  Deep Dive in Grafana
+                </a>
+              </div>
               
               {sysStats.metrics && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 font-black text-left">
@@ -552,6 +559,40 @@ export default function AdminDashboard() {
                               <td className={`p-4 text-sm ${parseFloat(node.cpu) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.cpu}</td>
                               <td className={`p-4 text-sm ${parseFloat(node.mem) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.mem}</td>
                               <td className="p-4 text-sm text-slate-600">{node.disk}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 💡 [추가] Database HA Status (ProxySQL) */}
+              {sysStats.haStatus && sysStats.haStatus.length > 0 && (
+                <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left overflow-hidden">
+                  <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Database className="text-emerald-500" size={24}/> Database HA Status (ProxySQL)</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left font-black italic">
+                      <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase text-slate-400 tracking-widest">
+                        <tr>
+                          <th className="p-4 font-black">Hostgroup (Role)</th>
+                          <th className="p-4 font-black">Hostname (IP)</th>
+                          <th className="p-4 font-black">Status / Weight</th>
+                          <th className="p-4 font-black">Read-Only</th>
+                          <th className="p-4 font-black">Replication Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {sysStats.haStatus.map((db: any, idx: number) => {
+                          const isError = db.status !== 'ONLINE' || db.readOnly === 'Unreachable';
+                          return (
+                            <tr key={idx} className={`hover:bg-slate-50 transition ${isError ? 'bg-rose-50/30' : ''}`}>
+                              <td className="p-4 font-black text-slate-800"><span className={`px-2 py-0.5 rounded-md text-[10px] text-white tracking-widest ${db.group === 10 ? 'bg-indigo-500' : 'bg-emerald-500'}`}>{db.group}</span><span className="ml-2">{db.role}</span></td>
+                              <td className="p-4 text-sm text-slate-600">{db.ip}</td>
+                              <td className={`p-4 font-black text-sm ${db.status === 'ONLINE' ? 'text-emerald-500' : 'text-rose-500'}`}>{db.status} <span className="text-slate-400 font-bold">({db.weight})</span></td>
+                              <td className={`p-4 text-sm ${db.readOnly === 'OFF' ? 'text-indigo-600' : db.readOnly === 'ON' ? 'text-blue-500' : 'text-rose-500'}`}>{db.readOnly}</td>
+                              <td className={`p-4 text-sm ${db.replStatus.includes('Unreachable') ? 'text-rose-500' : 'text-slate-600'}`}>{db.replStatus}</td>
                             </tr>
                           );
                         })}

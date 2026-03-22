@@ -48,8 +48,12 @@ spec:
   selector:
     app: plumbing-proxysql # 외부 Endpoints 대신 K8s 내부의 ProxySQL 파드를 바라보게 수정
   ports:
-    - port: 3306
+    - name: mysql
+      port: 3306
       targetPort: 6033
+    - name: proxysql-admin
+      port: 6032
+      targetPort: 6032
 ---
 ### 2. Backend (Node.js) ###
 apiVersion: apps/v1

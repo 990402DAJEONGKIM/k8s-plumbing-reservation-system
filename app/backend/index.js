@@ -18,6 +18,14 @@ const dbConfig = {
 };
 const pool = mysql.createPool(dbConfig);
 
+// 💡 ProxySQL Admin 접속용 Pool 생성
+const proxyAdminPool = mysql.createPool({
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: 'admin',
+    password: 'admin',
+    port: 6032
+});
+
 // 전역 시스템 상태
 let errorLogs = [];
 let isMaintenance = false;
@@ -209,6 +217,39 @@ async function queryPromVector(query) {
 }
 
 app.get('/api/admin/monitor-data', async (req, res) => {
+    // 💡 HA (고가용성) 상태 실시간 수집
+    let haStatus = [];
+    try {
+        // 1. ProxySQL 라우팅 상태 가져오기
+        const [servers] = await proxyAdminPool.query("SELECT hostgroup_id, hostname, status, weight FROM runtime_mysql_servers");
+        
+        // 2. 각 서버별 상세 상태 조회 (직접 접속)
+        for (const srv of servers) {
+            let role = srv.hostgroup_id === 10 ? 'Writer (Master)' : 'Reader (Slave)';
+            let readOnly = 'Unknown';
+            let replStatus = 'N/A';
+            
+            try {
+                const tmpPool = mysql.createPool({ host: srv.hostname, user: 'root', password: '8850', connectTimeout: 1000 });
+                const [roRows] = await tmpPool.query("SHOW VARIABLES LIKE 'read_only'");
+                if (roRows.length > 0) readOnly = roRows[0].Value;
+                
+                const [replRows] = await tmpPool.query("SHOW REPLICA STATUS");
+                if (replRows.length > 0) {
+                    const r = replRows[0];
+                    replStatus = `IO: ${r.Replica_IO_Running}, SQL: ${r.Replica_SQL_Running}, Lag: ${r.Seconds_Behind_Source}s`;
+                }
+                await tmpPool.end();
+            } catch(e) {
+                readOnly = 'Unreachable';
+                replStatus = 'Unreachable';
+            }
+            haStatus.push({ group: srv.hostgroup_id, role, ip: srv.hostname, status: srv.status, weight: srv.weight, readOnly, replStatus });
+        }
+    } catch(err) {
+        console.error("HA Monitor Error:", err);
+    }
+
     // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
     const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
@@ -303,7 +344,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         ];
     }
 
-    res.json({ success: true, metrics, nodeDetails, errCount: errorLogs.length, logs: errorLogs });
+    res.json({ success: true, metrics, nodeDetails, haStatus, errCount: errorLogs.length, logs: errorLogs });
 });
 
 // [API] 5. 관리자 계정
