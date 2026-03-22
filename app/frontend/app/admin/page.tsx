@@ -479,11 +479,14 @@ export default function AdminDashboard() {
             <div className="space-y-10 animate-in fade-in">
               <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
-                <a href={process.env.NEXT_PUBLIC_GRAFANA_URL || 'http://localhost:30000'} target="_blank" rel="noopener noreferrer" 
+                <button onClick={() => {
+                   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || `${window.location.protocol}//${window.location.hostname}:30000`;
+                   window.open(grafanaUrl, '_blank');
+                }} 
                    className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-orange-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-orange-500/30">
                   <Activity size={18} />
                   Deep Dive in Grafana
-                </a>
+                </button>
               </div>
               
               {sysStats.metrics && (
@@ -504,9 +507,9 @@ export default function AdminDashboard() {
 
                   {/* 3. 데이터베이스 (MySQL Exporter) */}
                   <div className="bg-white p-6 rounded-[30px] border shadow-sm flex flex-col gap-4 transition-all hover:shadow-lg">
-                    <div className="flex items-center gap-2 text-emerald-500"><Database size={24}/> <span className="text-lg italic uppercase tracking-tighter">Database</span></div>
+                    <div className="flex items-center gap-2 text-emerald-500"><Database size={24}/> <span className="text-lg italic uppercase tracking-tighter">MySQL (Prometheus)</span></div>
                     <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>QPS / Conn</span><span className="text-emerald-500">{sysStats.metrics.database.qps} / {sysStats.metrics.database.connections}</span></div>
-                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Rep. Lag</span><span className="text-emerald-500">{sysStats.metrics.database.replicationLag}</span></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-sm font-bold text-slate-600 flex justify-between"><span>Slow / Rep. Lag</span><span className="text-emerald-500">{sysStats.metrics.database.slowQueries} / {sysStats.metrics.database.replicationLag}</span></div>
                   </div>
 
                   {/* 4. 로그인/진입점 (Keepalived Exporter) */}
@@ -579,6 +582,8 @@ export default function AdminDashboard() {
                           <th className="p-4 font-black">Hostgroup (Role)</th>
                           <th className="p-4 font-black">Hostname (IP)</th>
                           <th className="p-4 font-black">Status / Weight</th>
+                          <th className="p-4 font-black">Active Conn</th>
+                          <th className="p-4 font-black">Routed Queries</th>
                           <th className="p-4 font-black">Read-Only</th>
                           <th className="p-4 font-black">Replication Status</th>
                         </tr>
@@ -589,10 +594,12 @@ export default function AdminDashboard() {
                           return (
                             <tr key={idx} className={`hover:bg-slate-50 transition ${isError ? 'bg-rose-50/30' : ''}`}>
                               <td className="p-4 font-black text-slate-800"><span className={`px-2 py-0.5 rounded-md text-[10px] text-white tracking-widest ${db.group === 10 ? 'bg-indigo-500' : 'bg-emerald-500'}`}>{db.group}</span><span className="ml-2">{db.role}</span></td>
-                              <td className="p-4 text-sm text-slate-600">{db.ip}</td>
+                              <td className="p-4 text-sm text-slate-600 font-mono">{db.ip}</td>
                               <td className={`p-4 font-black text-sm ${db.status === 'ONLINE' ? 'text-emerald-500' : 'text-rose-500'}`}>{db.status} <span className="text-slate-400 font-bold">({db.weight})</span></td>
-                              <td className={`p-4 text-sm ${db.readOnly === 'OFF' ? 'text-indigo-600' : db.readOnly === 'ON' ? 'text-blue-500' : 'text-rose-500'}`}>{db.readOnly}</td>
-                              <td className={`p-4 text-sm ${db.replStatus.includes('Unreachable') ? 'text-rose-500' : 'text-slate-600'}`}>{db.replStatus}</td>
+                              <td className="p-4 text-sm font-black text-indigo-600">{db.connUsed ?? 0}</td>
+                              <td className="p-4 text-sm font-black text-blue-500">{db.queries?.toLocaleString() ?? 0}</td>
+                              <td className={`p-4 text-sm font-black ${db.readOnly === 'OFF' ? 'text-indigo-600' : db.readOnly === 'ON' ? 'text-blue-500' : 'text-rose-500'}`}>{db.readOnly}</td>
+                              <td className={`p-4 text-sm font-mono ${db.replStatus?.includes('Unreachable') ? 'text-rose-500' : 'text-slate-600'}`}>{db.replStatus}</td>
                             </tr>
                           );
                         })}

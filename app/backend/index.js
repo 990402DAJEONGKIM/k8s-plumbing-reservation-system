@@ -223,11 +223,16 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         // 1. ProxySQL 라우팅 상태 가져오기
         const [servers] = await proxyAdminPool.query("SELECT hostgroup_id, hostname, status, weight FROM runtime_mysql_servers");
         
+        // 💡 ProxySQL 라우팅 통계 (Grafana 메트릭) 가져오기
+        const [stats] = await proxyAdminPool.query("SELECT hostgroup, srv_host, ConnUsed, Queries FROM stats_mysql_connection_pool");
+        
         // 2. 각 서버별 상세 상태 조회 (직접 접속)
         for (const srv of servers) {
             let role = srv.hostgroup_id === 10 ? 'Writer (Master)' : 'Reader (Slave)';
             let readOnly = 'Unknown';
             let replStatus = 'N/A';
+            
+            const st = stats.find(s => s.hostgroup === srv.hostgroup_id && s.srv_host === srv.hostname) || { ConnUsed: 0, Queries: 0 };
             
             try {
                 const tmpPool = mysql.createPool({ host: srv.hostname, user: 'root', password: '8850', connectTimeout: 1000 });
@@ -244,14 +249,18 @@ app.get('/api/admin/monitor-data', async (req, res) => {
                 readOnly = 'Unreachable';
                 replStatus = 'Unreachable';
             }
-            haStatus.push({ group: srv.hostgroup_id, role, ip: srv.hostname, status: srv.status, weight: srv.weight, readOnly, replStatus });
+            haStatus.push({ group: srv.hostgroup_id, role, ip: srv.hostname, status: srv.status, weight: srv.weight, readOnly, replStatus, connUsed: st.ConnUsed, queries: st.Queries });
         }
     } catch(err) {
         console.error("HA Monitor Error:", err);
     }
 
     // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
-    const [cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec] = await Promise.all([
+    const [
+        cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, 
+        cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec,
+        mysqlQps, mysqlConn, mysqlSlow, mysqlReplLag
+    ] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
         queryProm('100 - (avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)'), // RAM 사용률 (전체 노드 평균으로 수정)
         queryProm('100 - ((sum(node_filesystem_avail_bytes{mountpoint="/"}) / sum(node_filesystem_size_bytes{mountpoint="/"})) * 100)'), // 디스크
