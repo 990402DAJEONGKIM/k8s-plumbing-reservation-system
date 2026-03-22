@@ -457,6 +457,11 @@ jobs:
           EOF
           kubectl apply -f orchestrator-app.yaml
 
+          echo "plumbing-orchestrator 디플로이먼트 롤아웃 재시작 시작..."
+          kubectl rollout restart deployment plumbing-orchestrator
+          echo "plumbing-orchestrator 롤아웃 완료 대기 중..."
+          kubectl rollout status deployment plumbing-orchestrator
+
           echo "데이터베이스 자동 백업 CronJob(NFS 연동) 매니페스트 적용 중..."
           cat <<EOF > db-backup-cronjob.yaml
           apiVersion: v1
