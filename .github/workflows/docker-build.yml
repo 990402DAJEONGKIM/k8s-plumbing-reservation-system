@@ -117,13 +117,17 @@ jobs:
                       title: '{{ if eq .Status "firing" }}🚨 [FIRING]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
                       text: >-
                         {{ range .Alerts }}
+                        {{ if eq .Status "firing" }}
                         *상세 내용:* {{ .Annotations.description }}
-                        *발생 서버:* {{ .Labels.instance }}
+                        {{ else }}
+                        *상세 내용:* 🟢 시스템이 정상 상태로 복구되었습니다.
+                        {{ end }}
+                        *대상 서버:* {{ .Labels.instance }}
                         {{ end }}
                       actions:
                         - type: button
                           text: '🛠️ 관리자 대시보드 접속'
-                          url: 'https://www.plumbing.local'
+                          url: 'https://www.plumbing.local/admin'
                 - name: 'Slackbot'
                   slack_configs:
                     - api_url: 'https://hooks.slack.com/services/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' # 🚨 2번 담당자DM용 웹훅
@@ -131,13 +135,17 @@ jobs:
                       title: '{{ if eq .Status "firing" }}🔥 [FATAL ERROR]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
                       text: >-
                         {{ range .Alerts }}
+                        {{ if eq .Status "firing" }}
                         *상세 내용:* {{ .Annotations.description }}
-                        *발생 서버:* {{ .Labels.instance }}
+                        {{ else }}
+                        *상세 내용:* 🟢 시스템이 정상 상태로 복구되었습니다.
+                        {{ end }}
+                        *대상 서버:* {{ .Labels.instance }}
                         {{ end }}
                       actions:
                         - type: button
                           text: '🛠️ 관리자 대시보드 접속'
-                          url: 'https://www.plumbing.local'
+                          url: 'https://www.plumbing.local/admin'
           additionalPrometheusRulesMap:
             custom-alerts:
               groups:
