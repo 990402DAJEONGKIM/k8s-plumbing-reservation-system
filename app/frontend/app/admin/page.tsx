@@ -592,7 +592,7 @@ export default function AdminDashboard() {
               )}
 
               {/* 💡 [추가] Database HA Status (ProxySQL) */}
-              {sysStats.haStatus && sysStats.haStatus.length > 0 && (
+              {sysStats.haStatus && (
                 <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left overflow-hidden">
                   <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Database className="text-emerald-500" size={24}/> Database HA Status (ProxySQL)</h3>
                   <div className="overflow-x-auto">
@@ -609,7 +609,8 @@ export default function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {sysStats.haStatus.map((db: any, idx: number) => {
+                    {sysStats.haStatus.length > 0 ? (
+                      sysStats.haStatus.map((db: any, idx: number) => {
                           const isError = db.status !== 'ONLINE' || db.readOnly === 'Unreachable';
                           return (
                             <tr key={idx} className={`hover:bg-slate-50 transition ${isError ? 'bg-rose-50/30' : ''}`}>
@@ -631,7 +632,10 @@ export default function AdminDashboard() {
                               <td className={`p-4 text-sm font-mono ${db.replStatus?.includes('Unreachable') ? 'text-rose-500' : 'text-slate-600'}`}>{db.replStatus}</td>
                             </tr>
                           );
-                        })}
+                      })
+                    ) : (
+                      <tr><td colSpan={7} className="p-10 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 bg-slate-50 rounded-3xl">ProxySQL 통계 데이터를 불러오는 중이거나 연결에 실패했습니다.<br/><span className="text-xs text-rose-500 mt-2 block">백엔드 파드의 ProxySQL Admin(6032) 접속 상태를 확인해주세요.</span></td></tr>
+                    )}
                       </tbody>
                     </table>
                   </div>
