@@ -352,8 +352,7 @@ jobs:
                 "ApplyMySQLPromotionAfterMasterFailover": true,
                 "PreventCrossDataCenterMasterFailover": false,
                 "FailMasterPromotionIfSQLThreadNotUpToDate": true,
-            "DelayMasterPromotionIfSQLThreadNotUpToDate": false
-        }
+                "DelayMasterPromotionIfSQLThreadNotUpToDate": false }
           ---
           apiVersion: v1
           kind: PersistentVolumeClaim
