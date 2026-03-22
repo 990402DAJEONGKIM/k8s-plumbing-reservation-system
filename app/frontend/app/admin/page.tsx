@@ -771,5 +771,4 @@ function StatCard({ label, val, color }: any) {
       <p className="text-5xl font-black mt-3 italic tracking-tighter">{val}</p>
     </div>
   );
-} );
 }
