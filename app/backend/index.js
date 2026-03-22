@@ -258,7 +258,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
     // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
     const [
         cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, 
-        cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec,
+        cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec, upVec,
         mysqlQps, mysqlConn, mysqlSlow, mysqlReplLag
     ] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
@@ -275,6 +275,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         queryPromVector('100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100)'),
         queryPromVector('kube_node_status_condition{condition="Ready", status="true"}'),
         queryPromVector('kube_node_info'), // 💡 [추가] IP와 노드 이름 번역을 위한 메타데이터
+        queryPromVector('up'), // 💡 [추가] 가장 빠르고 정확한 노드 생존 여부(15초 갱신) 파악용
         
         // 💡 [복구] Prometheus MySQL Exporter 메트릭 호출 쿼리 추가
         queryProm('sum(rate(mysql_global_status_queries[1m]))'),
@@ -365,10 +366,6 @@ app.get('/api/admin/monitor-data', async (req, res) => {
             const matchKey = Object.keys(nodeMap).find(k => k === targetNode || k.includes(targetNode) || targetNode.includes(k));
             if (matchKey) {
                 nodeMap[matchKey][key] = val;
-                // 💡 데이터가 수집되었다면 서버가 살아있다는 뜻이므로 Ready 상태로 변경
-                if (nodeMap[matchKey].status === '🔴 Down') {
-                    nodeMap[matchKey].status = '🟢 Ready';
-                }
             } else {
                 // 💡 K8s 클러스터 외부의 노드(VMware)일 경우
                 const displayIp = nodeNameToIp[targetNode] || (targetNode.match(/^[0-9.]+$/) ? targetNode : '');
@@ -379,6 +376,25 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         });
     };
     mergeVec(cpuVec, 'cpu'); mergeVec(memVec, 'mem'); mergeVec(diskVec, 'disk');
+
+    // 💡 실시간 생존 여부(up) 덮어쓰기 (15초 내 즉각 반영)
+    if (upVec) {
+        upVec.forEach(res => {
+            let targetNode = res.metric.instance || res.metric.node || 'Unknown';
+            if (targetNode.includes(':')) targetNode = targetNode.split(':')[0]; // IP 추출
+            
+            if (ipToNodeName[targetNode]) targetNode = ipToNodeName[targetNode];
+            
+            const matchKey = Object.keys(nodeMap).find(k => k === targetNode || k.includes(targetNode) || targetNode.includes(k));
+            if (matchKey && nodeMap[matchKey].isExternal) {
+                nodeMap[matchKey].status = res.value[1] === '1' ? '🟢 Ready' : '🔴 Down';
+                // 죽은 서버면 유령 과거 자원 데이터를 N/A로 초기화
+                if (res.value[1] === '0') {
+                    nodeMap[matchKey].cpu = 'N/A'; nodeMap[matchKey].mem = 'N/A'; nodeMap[matchKey].disk = 'N/A';
+                }
+            }
+        });
+    }
 
     let nodeDetails = Object.values(nodeMap);
     // Prometheus 연결이 안 되어 데이터가 비어있을 경우 (UI 확인용 Mock 데이터 제공)
