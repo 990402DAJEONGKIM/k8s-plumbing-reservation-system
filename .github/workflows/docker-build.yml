@@ -173,7 +173,7 @@ jobs:
           echo "MySQL Exporter 모니터링 전용 DB 계정 자동 생성 중..."
           kubectl exec $POD_NAME -- mysql -u root -p8850 -h 172.16.0.7 -P 3306 --skip-ssl -e "
             DROP USER IF EXISTS 'exporter'@'%';
-            CREATE USER 'exporter'@'%' IDENTIFIED BY 'exporter_pass_123';
+            CREATE USER 'exporter'@'%' IDENTIFIED WITH mysql_native_password BY 'exporter_pass_123';
             GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
             FLUSH PRIVILEGES;
           "
