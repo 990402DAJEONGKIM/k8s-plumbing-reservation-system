@@ -309,12 +309,12 @@ app.get('/api/admin/monitor-data', async (req, res) => {
     // 💡 IP와 노드 이름 상호 번역을 위한 사전(Map) 만들기
     // K8s 외부의 VMware 노드들을 예쁘게 표시하기 위해 수동 매핑 추가
     const ipToNodeName = {
-        '172.16.0.7': 'mysql-m (VMware)',
-        '172.16.0.8': 'mysql-s (VMware)'
+        '172.16.0.7': 'mysql-m',
+        '172.16.0.8': 'mysql-s'
     };
     const nodeNameToIp = {
-        'mysql-m (VMware)': '172.16.0.7',
-        'mysql-s (VMware)': '172.16.0.8'
+        'mysql-m': '172.16.0.7',
+        'mysql-s': '172.16.0.8'
     };
     if (nodeInfoVec) {
         nodeInfoVec.forEach(res => {
@@ -331,7 +331,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
     if (nodeStatusVec) {
         nodeStatusVec.forEach(res => {
             const nodeName = res.metric.node;
-            if(nodeName) nodeMap[nodeName] = { name: nodeName, ip: nodeNameToIp[nodeName] || '', status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+            if(nodeName) nodeMap[nodeName] = { name: nodeName, ip: nodeNameToIp[nodeName] || '', status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A', isExternal: false };
         });
     }
 
@@ -357,7 +357,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
                 // 💡 K8s 클러스터 외부의 노드(VMware)일 경우
                 const displayIp = nodeNameToIp[targetNode] || (targetNode.match(/^[0-9.]+$/) ? targetNode : '');
                 const displayName = targetNode.match(/^[0-9.]+$/) && !nodeNameToIp[targetNode] ? `External Node` : targetNode;
-                nodeMap[targetNode] = nodeMap[targetNode] || { name: displayName, ip: displayIp, status: '🟢 External', cpu: 'N/A', mem: 'N/A', disk: 'N/A' };
+                nodeMap[targetNode] = nodeMap[targetNode] || { name: displayName, ip: displayIp, status: '🟢 Ready', cpu: 'N/A', mem: 'N/A', disk: 'N/A', isExternal: true };
                 nodeMap[targetNode][key] = val;
             }
         });

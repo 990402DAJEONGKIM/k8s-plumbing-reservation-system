@@ -113,6 +113,8 @@ jobs:
             namespace: monitoring
             interval: 15s
             scrapeTimeout: 10s
+            additionalLabels:
+              release: monitoring
           EOF
           
           cat <<EOF > mysql-slave-values.yaml
@@ -126,6 +128,8 @@ jobs:
             namespace: monitoring
             interval: 15s
             scrapeTimeout: 10s
+            additionalLabels:
+              release: monitoring
           EOF
           
           helm upgrade --install mysql-exporter-master prometheus-community/prometheus-mysql-exporter --namespace monitoring -f mysql-master-values.yaml

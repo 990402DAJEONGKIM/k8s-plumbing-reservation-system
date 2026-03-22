@@ -537,7 +537,7 @@ export default function AdminDashboard() {
               {/* 💡 [추가] 노드별 상세 상태 테이블 (Top-Down 접근법 적용) */}
               {sysStats.nodeDetails && sysStats.nodeDetails.length > 0 && (
                 <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left overflow-hidden">
-                  <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Server className="text-indigo-600" size={24}/> Cluster Node Status</h3>
+                  <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Server className="text-indigo-600" size={24}/> Node Status</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left font-black italic">
                       <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase text-slate-400 tracking-widest">
@@ -552,10 +552,10 @@ export default function AdminDashboard() {
                       <tbody className="divide-y divide-slate-50">
                         {sysStats.nodeDetails.map((node: any, idx: number) => {
                           const isWarn = parseFloat(node.cpu) > 80 || parseFloat(node.mem) > 80;
-                          // 💡 외부 노드인지 판별 (백엔드에서 'External' 상태 또는 이름에 'VMware' 포함)
-                          const isExternal = node.status.includes('External') || node.name.includes('VMware');
+                          // 💡 외부 노드인지 판별 (백엔드에서 넘겨준 isExternal 플래그 사용)
+                          const isExternal = node.isExternal;
                           return (
-                            <tr key={idx} className={`hover:bg-slate-50 transition ${isWarn ? 'bg-rose-50/30' : isExternal ? 'bg-emerald-50/30' : ''}`}>
+                            <tr key={idx} className={`hover:bg-slate-100 transition border-b border-white ${isWarn ? 'bg-rose-50/30' : isExternal ? 'bg-emerald-50/40' : 'bg-blue-50/20'}`}>
                               <td className="p-4 font-black text-slate-800">
                                 <div className="flex items-center gap-2">
                                   {isExternal ? <Database className="text-emerald-500" size={16}/> : <Cloud className="text-blue-500" size={16}/>}
@@ -771,4 +771,5 @@ function StatCard({ label, val, color }: any) {
       <p className="text-5xl font-black mt-3 italic tracking-tighter">{val}</p>
     </div>
   );
+} );
 }
