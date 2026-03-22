@@ -341,6 +341,12 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         });
     }
 
+    // 💡 외부 노드(VMware)들이 꺼져도 목록에서 사라지지 않도록 사전 등록 (기본값: Down)
+    Object.keys(ipToNodeName).forEach(ip => {
+        const name = ipToNodeName[ip];
+        nodeMap[name] = { name: name, ip: ip, status: '🔴 Down', cpu: 'N/A', mem: 'N/A', disk: 'N/A', isExternal: true };
+    });
+
     // Node Exporter 데이터를 기존 노드 리스트에 병합하는 헬퍼
     const mergeVec = (vec, key) => {
         if (!vec) return;
@@ -359,6 +365,10 @@ app.get('/api/admin/monitor-data', async (req, res) => {
             const matchKey = Object.keys(nodeMap).find(k => k === targetNode || k.includes(targetNode) || targetNode.includes(k));
             if (matchKey) {
                 nodeMap[matchKey][key] = val;
+                // 💡 데이터가 수집되었다면 서버가 살아있다는 뜻이므로 Ready 상태로 변경
+                if (nodeMap[matchKey].status === '🔴 Down') {
+                    nodeMap[matchKey].status = '🟢 Ready';
+                }
             } else {
                 // 💡 K8s 클러스터 외부의 노드(VMware)일 경우
                 const displayIp = nodeNameToIp[targetNode] || (targetNode.match(/^[0-9.]+$/) ? targetNode : '');
