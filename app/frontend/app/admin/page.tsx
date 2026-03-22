@@ -480,7 +480,7 @@ export default function AdminDashboard() {
               <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black italic tracking-tighter uppercase font-black">Infra Status</h2>
                 <button onClick={() => {
-                   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || `${window.location.protocol}//${window.location.hostname}:30000`;
+                   const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || `http://${window.location.hostname}:30000`;
                    window.open(grafanaUrl, '_blank');
                 }} 
                    className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl hover:bg-orange-500 transition-all font-black text-sm uppercase tracking-widest shadow-lg hover:shadow-orange-500/30">

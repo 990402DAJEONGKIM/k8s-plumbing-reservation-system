@@ -39,6 +39,9 @@ jobs:
           file: ./app/frontend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://www.plumbing.local
+            NEXT_PUBLIC_GRAFANA_URL=https://grafana.plumbing.local
           provenance: false # 💡 Docker Hub와 K8s의 SHA 해시값이 다르게 보이는 현상 방지
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
@@ -74,6 +77,21 @@ jobs:
           
           echo "K8s 매니페스트(YAML) 최신 설정 적용 중..."
           kubectl apply -f app/plumbing-app.yaml
+
+          echo "Grafana 익명 접근(Anonymous Access) 설정 적용 중..."
+          cat <<EOF > grafana-anon.yaml
+          grafana:
+            grafana.ini:
+              auth.anonymous:
+                enabled: true
+                org_name: Main Org.
+                org_role: Viewer
+          EOF
+          
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          # Helm을 이용해 기존 모니터링 스택에 익명 접근 설정만 안전하게 덮어쓰기
+          helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f grafana-anon.yaml
 
           echo "ProxySQL 파드 실행 완료 대기 중..."
           kubectl rollout status deployment plumbing-proxysql
