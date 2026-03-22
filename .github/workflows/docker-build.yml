@@ -45,24 +45,8 @@ jobs:
             NEXT_PUBLIC_ORCHESTRATOR_URL=http://orchestrator.plumbing.local
           provenance: false # 💡 Docker Hub와 K8s의 SHA 해시값이 다르게 보이는 현상 방지
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
+
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
-          
-      # 💡 [궁극의 방어] 남이 만든 이미지에 의존하지 않고, GitHub 공식 릴리즈 바이너리를 사용해 내 이미지를 직접 조립(Bake)합니다.
-      - name: Build Custom Orchestrator Image
-        run: |
-          mkdir -p orchestrator-build && cd orchestrator-build
-          cat << 'EOF' > Dockerfile
-          FROM ubuntu:22.04
-          ENV DEBIAN_FRONTEND=noninteractive
-          RUN apt-get update && apt-get install -y curl sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
-          RUN curl -L -o /tmp/orch.deb https://github.com/github/orchestrator/releases/download/v3.2.6/orchestrator_3.2.6_amd64.deb \
-              && apt-get update && apt-get install -y /tmp/orch.deb && rm /tmp/orch.deb && rm -rf /var/lib/apt/lists/*
-          WORKDIR /usr/local/orchestrator
-          EXPOSE 3000
-          CMD ["sh", "-c", "/usr/local/orchestrator/orchestrator -config /etc/orchestrator.conf.json http"]
-          EOF
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest .
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
 
   deploy: # 새로운 배포 Job 추가
     runs-on: self-hosted # 💡 self-hosted runner 사용
@@ -341,7 +325,7 @@ jobs:
             orchestrator.conf.json: |
               {
                 "ListenAddress": ":3000",
-                "BackendDB": "sqlite3",
+                "BackendDB": "sqlite",
                 "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3",
                 "MySQLTopologyUser": "orchestrator_user",
                 "MySQLTopologyPassword": "orch_password_123",
@@ -396,7 +380,6 @@ jobs:
                 - name: orchestrator
                   # 💡 위에서 직접 빌드해서 내 저장소에 올린 이미지를 사용!
                   image: ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
-                  imagePullPolicy: Always # 💡 K8s가 예전 이미지를 재사용하지 않고 항상 방금 만든 최신 이미지를 가져오도록 강제
                   ports:
                   - containerPort: 3000
                   volumeMounts:
