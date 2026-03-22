@@ -329,6 +329,7 @@ jobs:
                 "SQLite3DataFile": "/var/lib/orchestrator/orchestrator.sqlite3",
                 "MySQLTopologyUser": "orchestrator_user",
                 "MySQLTopologyPassword": "orch_password_123",
+                "MySQLTopologySSLSkipVerify": true,
                 "MySQLTopologySSLMode": "disabled",
                 "DiscoverByShowSlaveHosts": true,
                 "InstancePollSeconds": 5,
