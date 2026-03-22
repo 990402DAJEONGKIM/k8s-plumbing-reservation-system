@@ -86,6 +86,14 @@ jobs:
                 enabled: true
                 org_name: Main Org.
                 org_role: Viewer
+          prometheus:
+            prometheusSpec:
+              additionalScrapeConfigs:
+                - job_name: 'vmware-nodes'
+                  static_configs:
+                    - targets: 
+                      - '172.16.0.7:9100'
+                      - '172.16.0.8:9100'
           EOF
           
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts

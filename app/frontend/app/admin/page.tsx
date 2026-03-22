@@ -552,13 +552,22 @@ export default function AdminDashboard() {
                       <tbody className="divide-y divide-slate-50">
                         {sysStats.nodeDetails.map((node: any, idx: number) => {
                           const isWarn = parseFloat(node.cpu) > 80 || parseFloat(node.mem) > 80;
+                          // 💡 외부 노드인지 판별 (백엔드에서 'External' 상태 또는 이름에 'VMware' 포함)
+                          const isExternal = node.status.includes('External') || node.name.includes('VMware');
                           return (
                             <tr key={idx} className={`hover:bg-slate-50 transition ${isWarn ? 'bg-rose-50/30' : ''}`}>
+                            <tr key={idx} className={`hover:bg-slate-50 transition ${isWarn ? 'bg-rose-50/30' : isExternal ? 'bg-emerald-50/30' : ''}`}>
                               <td className="p-4 font-black text-slate-800">
                                 {node.name}
                                 {node.ip && <span className="ml-2 text-[10px] text-slate-400 font-bold tracking-widest bg-slate-100 px-2 py-0.5 rounded-md">({node.ip})</span>}
+                                <div className="flex items-center gap-2">
+                                  {isExternal ? <Database className="text-emerald-500" size={16}/> : <Cloud className="text-blue-500" size={16}/>}
+                                  <span>{node.name}</span>
+                                </div>
+                                {node.ip && <div className="mt-1 ml-6 text-[10px] text-slate-400 font-bold tracking-widest bg-slate-100 inline-block px-2 py-0.5 rounded-md">({node.ip})</div>}
                               </td>
                               <td className={`p-4 font-black text-sm ${node.status.includes('Warning') || node.status.includes('Not') ? 'text-rose-500' : 'text-emerald-500'}`}>{node.status}</td>
+                              <td className={`p-4 font-black text-sm ${node.status.includes('Warning') || node.status.includes('Not') ? 'text-rose-500' : isExternal ? 'text-emerald-500' : 'text-blue-500'}`}>{node.status}</td>
                               <td className={`p-4 text-sm ${parseFloat(node.cpu) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.cpu}</td>
                               <td className={`p-4 text-sm ${parseFloat(node.mem) > 80 ? 'text-rose-500 animate-pulse' : 'text-slate-600'}`}>{node.mem}</td>
                               <td className="p-4 text-sm text-slate-600">{node.disk}</td>
