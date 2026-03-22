@@ -368,14 +368,14 @@ jobs:
                 labels:
                   app: orchestrator
               spec:
-            # 💡 [핵심 방어 1] NFS 볼륨 마운트 시 권한 문제(Permission Denied) 방지
-            initContainers:
-            - name: fix-nfs-permissions
-              image: busybox
-              command: ["sh", "-c", "chmod -R 777 /var/lib/orchestrator"]
-              volumeMounts:
-              - name: data-volume
-                mountPath: /var/lib/orchestrator
+                # 💡 [핵심 방어 1] NFS 볼륨 마운트 시 권한 문제(Permission Denied) 방지
+                initContainers:
+                - name: fix-nfs-permissions
+                  image: busybox
+                  command: ["sh", "-c", "chmod -R 777 /var/lib/orchestrator"]
+                  volumeMounts:
+                  - name: data-volume
+                    mountPath: /var/lib/orchestrator
                 containers:
                 - name: orchestrator
                   image: openark/orchestrator:3.2.6

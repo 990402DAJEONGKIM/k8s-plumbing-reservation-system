@@ -81,11 +81,28 @@ spec:
       labels:
         app: plumbing-backend
     spec:
+      # 💡 [고가용성 극대화] 같은 백엔드 파드끼리는 서로 다른 노드(n1, n2)에 떨어지도록 스케줄링 유도
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: plumbing-backend
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: backend
           # 🚨 본인의 Docker Hub ID로 변경하세요!
           image: dajeongkim/plumbing-backend:latest
           imagePullPolicy: Always # 항상 최신 이미지를 가져오도록 설정
+          resources:
+            requests:
+              cpu: 100m # 기준점: 평소에 0.1 코어(100m) 정도를 쓴다고 K8s에 신고
+              memory: 128Mi
+            limits:
+              cpu: 500m # 최대 0.5 코어까지만 쓰도록 제한
+              memory: 512Mi
           ports:
             - containerPort: 4000
           env:
@@ -136,11 +153,28 @@ spec:
       labels:
         app: plumbing-frontend
     spec:
+      # 💡 [고가용성 극대화] 같은 프론트엔드 파드끼리는 서로 다른 노드(n1, n2)에 떨어지도록 스케줄링 유도
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: plumbing-frontend
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: frontend
           # 🚨 본인의 Docker Hub ID로 변경하세요!
           image: dajeongkim/plumbing-frontend:latest
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           ports:
             - containerPort: 3000
           env:
@@ -223,3 +257,43 @@ spec:
                 name: monitoring-grafana
                 port:
                   number: 80
+---
+# 💡 6. 백엔드 오토스케일링 (HPA)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: plumbing-backend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: plumbing-backend
+  minReplicas: 2 # 최소 2개 유지 (고가용성 방어)
+  maxReplicas: 10 # 트래픽 폭주 시 최대 10개까지 자동 확장
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70 # CPU 사용률이 70%를 넘기면 스케일 아웃 시작
+---
+# 💡 7. 프론트엔드 오토스케일링 (HPA)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: plumbing-frontend-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: plumbing-frontend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
