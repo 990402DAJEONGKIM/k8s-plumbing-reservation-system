@@ -109,13 +109,19 @@ jobs:
                       - severity="critical"
                     receiver: 'Slackbot' # 💡 Critical 에러 발생 시 라우팅 (아래 설정한 name과 똑같이 맞춤)
                     continue: true # 💡 true로 두면 DM도 보내고, 기본 채널로도 보냅니다. (DM만 받으려면 지우세요)
+              inhibit_rules:
+                - source_matchers:
+                    - alertname="InstanceDown"
+                  target_matchers:
+                    - alertname="DiskSpaceFull"
+                  equal: ['instance']
               receivers:
                 - name: 'infra-test'
                   slack_configs:
                     - api_url: 'https://hooks.slack.com/services/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' # 🚨 1번 채널용 웹훅
                       send_resolved: true
                       title: '{{ if eq .Status "firing" }}🚨 [FIRING]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
-                      text: >-
+                      text: |-
                         {{ range .Alerts }}
                         {{ if eq .Status "firing" }}
                         *상세 내용:* {{ .Annotations.description }}
@@ -133,7 +139,7 @@ jobs:
                     - api_url: 'https://hooks.slack.com/services/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' # 🚨 2번 담당자DM용 웹훅
                       send_resolved: true
                       title: '{{ if eq .Status "firing" }}🔥 [FATAL ERROR]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
-                      text: >-
+                      text: |-
                         {{ range .Alerts }}
                         {{ if eq .Status "firing" }}
                         *상세 내용:* {{ .Annotations.description }}
@@ -160,14 +166,14 @@ jobs:
                         description: "웹사이트 트래픽이 폭주하여 DB 쿼리량이 30 QPS를 초과했습니다! (현재: {{ \$value | humanize }} QPS)"
                     - alert: DatabaseNodeDown
                       expr: mysql_up == 0
-                      for: 1m
+                      for: 15s
                       labels:
                         severity: critical
                       annotations:
                         description: "데이터베이스 노드가 응답하지 않습니다! Failover 상태를 확인하세요."
                     - alert: InstanceDown
                       expr: up == 0
-                      for: 1m
+                      for: 15s
                       labels:
                         severity: critical
                       annotations:
