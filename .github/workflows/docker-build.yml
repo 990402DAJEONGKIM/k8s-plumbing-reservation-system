@@ -194,8 +194,16 @@ jobs:
           EOF
           
           helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo update
-          helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f monitoring-values.yaml
+          
+          # 💡 실무 적용 1: 네트워크 지연 방지를 위한 자동 재시도(Retry) 로직
+          for i in 1 2 3; do
+            helm repo update && break || (echo "Repo update failed, retrying in 10s..." && sleep 10)
+          done
+          
+          # 💡 실무 적용 2: 일시적 다운로드 실패 대응 (최대 3회 재시도)
+          for i in 1 2 3; do
+            helm upgrade monitoring prometheus-community/kube-prometheus-stack --namespace monitoring --reuse-values -f monitoring-values.yaml && break || (echo "Helm upgrade failed, retrying in 15s..." && sleep 15)
+          done
 
           echo "MySQL Exporter (Master & Slave) 설정 및 자동 배포 진행 중..."
           cat <<EOF > mysql-master-values.yaml
