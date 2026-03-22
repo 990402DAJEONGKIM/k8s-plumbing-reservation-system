@@ -47,11 +47,22 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/plumbing-frontend:buildcache,mode=max
           
-      # 💡 [핵심 방어] 복잡한 소스코드 컴파일 대신, 안정적인 커뮤니티 완성본을 가져와 내 저장소에 영구 백업(Mirroring)
-      - name: Mirror Orchestrator Image
+      # 💡 [궁극의 방어] 남이 만든 이미지에 의존하지 않고, GitHub 공식 릴리즈 바이너리를 사용해 내 이미지를 직접 조립(Bake)합니다.
+      - name: Build Custom Orchestrator Image
         run: |
-          docker pull sjmcb/orchestrator:latest
-          docker tag sjmcb/orchestrator:latest ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
+          mkdir -p orchestrator-build && cd orchestrator-build
+          cat << 'EOF' > Dockerfile
+          FROM ubuntu:22.04
+          ENV DEBIAN_FRONTEND=noninteractive
+          RUN apt-get update && apt-get install -y curl sqlite3 ca-certificates && rm -rf /var/lib/apt/lists/*
+          RUN curl -L -o /tmp/orch.tar.gz https://github.com/github/orchestrator/releases/download/v3.2.6/orchestrator-3.2.6-linux-amd64.tar.gz \
+              && tar -xzf /tmp/orch.tar.gz -C / \
+              && rm /tmp/orch.tar.gz
+          WORKDIR /usr/local/orchestrator
+          EXPOSE 3000
+          CMD ["./orchestrator", "http"]
+          EOF
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest .
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/plumbing-orchestrator:latest
 
   deploy: # 새로운 배포 Job 추가
