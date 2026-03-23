@@ -260,8 +260,9 @@ jobs:
           kubectl exec $POD_NAME -- mysql -u admin -padmin -h 127.0.0.1 -P 6032 -e "
             DELETE FROM mysql_servers;
             # 💡 Replication Hostgroup 사용 시, 서버를 한 번만 등록해두면 ProxySQL이 read_only 값을 보고 10(Writer)과 20(Reader) 사이를 알아서 이동시킵니다.
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (10, '172.16.0.7', 3306); # 현재 마스터
-            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (20, '172.16.0.8', 3306); # 현재 리플리카
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (10, '172.16.0.7', 3306); # 마스터 (Writer)
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (20, '172.16.0.7', 3306); # 마스터 (Reader)
+            INSERT INTO mysql_servers(hostgroup_id, hostname, port) VALUES (20, '172.16.0.8', 3306); # 슬레이브 (Reader)
             UPDATE mysql_servers SET status = 'ONLINE';
             
             # 💡 Read-Only 기반 자동 라우팅 활성화 (10번은 Writer, 20번은 Reader)
