@@ -16,6 +16,21 @@ export default function Home() {
     }
   }, [announcements]);
 
+  // 💡 페이지 로드 시 실시간으로 점검 모드 상태를 확인하여 즉시 폼 차단
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+        const res = await fetch(`${API_URL}/api/admin/settings`);
+        const data = await res.json();
+        if (data.isMaintenance) setIsSystemDown(true);
+      } catch (e) {
+        console.error("Status check failed", e);
+      }
+    };
+    checkSystemStatus();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {

@@ -18,14 +18,22 @@ const dbConfig = {
 };
 const pool = mysql.createPool(dbConfig);
 
-// 전역 시스템 상태
-let isMaintenance = false;
+// 💡 다중 파드 환경(Kubernetes) 상태 동기화를 위한 설정 테이블 자동 생성
+pool.query(`CREATE TABLE IF NOT EXISTS system_settings (setting_key VARCHAR(50) PRIMARY KEY, setting_value VARCHAR(10))`)
+    .then(() => pool.query(`INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('isMaintenance', 'false')`))
+    .catch(err => console.error("Settings Table Init Error:", err));
 
 // �️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
     // 💡 점검 모드라도 GET(조회) 요청은 허용, 쓰기/수정/삭제 요청(POST, PUT, PATCH, DELETE)만 차단
-    if (isMaintenance && req.method !== 'GET' && !req.path.includes('/api/admin/settings')) {
-        return res.status(503).json({ success: false, message: "현재 서버 점검 중입니다." });
+    if (req.method !== 'GET' && !req.path.includes('/api/admin/settings')) {
+        try {
+            // 💡 DB에서 점검 상태 실시간 확인 (모든 파드가 완벽하게 동일한 상태 공유)
+            const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+            if (rows.length > 0 && rows[0].setting_value === 'true') {
+                return res.status(503).json({ success: false, message: "현재 서버 점검 중입니다." });
+            }
+        } catch (err) { console.error("Maintenance Check Error:", err); }
     }
     next();
 });
@@ -172,10 +180,25 @@ app.get('/api/admin/customers', async (req, res) => {
 });
 
 // [API] 3. 설정 및 백업
-app.get('/api/admin/settings', (req, res) => res.json({ isMaintenance }));
-app.post('/api/admin/settings/toggle', (req, res) => {
-    isMaintenance = !isMaintenance;
-    res.json({ success: true, isMaintenance });
+app.get('/api/admin/settings', async (req, res) => {
+    try {
+        const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+        const isMaintenance = rows.length > 0 && rows[0].setting_value === 'true';
+        res.json({ isMaintenance, notificationEnabled: true });
+    } catch (err) { res.json({ isMaintenance: false, notificationEnabled: true }); }
+});
+
+app.post('/api/admin/settings/toggle', async (req, res) => {
+    const { type } = req.body;
+    if (type === 'maintenance') {
+        try {
+            const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+            const current = rows.length > 0 && rows[0].setting_value === 'true';
+            const newVal = current ? 'false' : 'true';
+            await pool.query(`UPDATE system_settings SET setting_value = ? WHERE setting_key = 'isMaintenance'`, [newVal]);
+            res.json({ success: true, isMaintenance: newVal === 'true', notificationEnabled: true });
+        } catch (err) { res.status(500).json({ success: false }); }
+    } else { res.json({ success: true, notificationEnabled: true }); }
 });
 
 app.get('/api/admin/backup/download', (req, res) => {
@@ -224,7 +247,8 @@ async function queryLokiLogs(query, limit = 5) {
             data.data.result.forEach(stream => {
                 stream.values.forEach(val => {
                     const tsMs = parseInt(val[0].substring(0, 13)); // 나노초를 밀리초로 변환
-                    const dateStr = new Date(tsMs).toLocaleTimeString('ko-KR', { hour12: false });
+                    const d = new Date(tsMs);
+                    const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${d.toLocaleTimeString('ko-KR', { hour12: false })}`; // 💡 월/일 추가
                     let msg = val[1].replace(/\n/g, ' ').trim(); // 줄바꿈 제거
                     logs.push({ id: val[0], time: dateStr, message: msg.length > 100 ? msg.substring(0, 100) + '...' : msg });
                 });
