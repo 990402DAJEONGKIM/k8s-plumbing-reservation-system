@@ -1,20 +1,30 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Phone, Clock, ShieldCheck, Droplets, Wrench, Hammer, Send, Truck, Pipette, Flame, Heart, ChevronRight, Search, Megaphone, X, AlertCircle } from 'lucide-react';
-import { useAnnouncements } from '../lib/hooks';
 
 export default function Home() {
   const [form, setForm] = useState({ name: '', phone: '', address: '', issueType: '누수/방수', reservation_datetime: '' });
   const [submittedNumber, setSubmittedNumber] = useState('');
   const [showPopup, setShowPopup] = useState(false);
   const [isSystemDown, setIsSystemDown] = useState(false);
-  const announcements = useAnnouncements();
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
+  // 💡 공지사항 실시간 로드 (브라우저 캐시 완벽 우회)
   useEffect(() => {
-    if (announcements.length > 0) {
-      setShowPopup(true);
-    }
-  }, [announcements]);
+    const fetchAnnouncements = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+        // _t=타임스탬프 파라미터를 추가하여 무조건 서버(DB)에서 최신 데이터를 가져옵니다.
+        const res = await fetch(`${API_URL}/api/admin/announcements?_t=${Date.now()}`);
+        const data = await res.json();
+        if (data.success && data.list.length > 0) {
+          setAnnouncements(data.list);
+          setShowPopup(true);
+        }
+      } catch (e) { console.error("Announcements load failed", e); }
+    };
+    fetchAnnouncements();
+  }, []);
 
   // 💡 페이지 로드 시 실시간으로 점검 모드 상태를 확인하여 즉시 폼 차단
   useEffect(() => {
