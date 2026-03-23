@@ -1,0 +1,128 @@
+grafana:
+  grafana.ini:
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Viewer
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki:3100
+      access: proxy
+      isDefault: false
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    additionalScrapeConfigs:
+      - job_name: 'vmware-nodes'
+        static_configs:
+          - targets: 
+            - '172.16.0.7:9100'
+            - '172.16.0.8:9100'
+            - '172.16.0.2:9100' 
+            - '172.16.0.9:9100' 
+            - '172.16.0.3:9100' 
+
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 1m
+    route:
+      receiver: 'infra-test'
+      group_by: ['alertname']
+      group_wait: 10s
+      group_interval: 15s
+      routes:
+        - matchers:
+            - severity="critical"
+          receiver: 'Slackbot'
+          continue: true
+    inhibit_rules:
+      - source_matchers:
+          - alertname="InstanceDown"
+        target_matchers:
+          - alertname="DiskSpaceFull"
+        equal: ['instance']
+    receivers:
+      - name: 'infra-test'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/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'
+            send_resolved: true
+            title: '{{ if eq .Status "firing" }}🚨 [FIRING]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
+            text: |-
+              {{ range .Alerts }}
+              {{ if eq .Status "firing" }}
+              *상세 내용:* {{ .Annotations.description }}
+              {{ else }}
+              *상세 내용:* 🟢 시스템이 정상 상태로 복구되었습니다.
+              {{ end }}
+              *대상 서버:* {{ .Labels.instance }}
+              {{ end }}
+            actions:
+              - type: button
+                text: '🛠️ 관리자 대시보드 접속'
+                url: 'https://www.plumbing.local/admin'
+      - name: 'Slackbot'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/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'
+            send_resolved: true
+            title: '{{ if eq .Status "firing" }}🔥 [FATAL ERROR]{{ else }}✅ [RESOLVED]{{ end }} {{ .GroupLabels.alertname }}'
+            text: |-
+              {{ range .Alerts }}
+              {{ if eq .Status "firing" }}
+              *상세 내용:* {{ .Annotations.description }}
+              {{ else }}
+              *상세 내용:* 🟢 시스템이 정상 상태로 복구되었습니다.
+              {{ end }}
+              *대상 서버:* {{ .Labels.instance }}
+              {{ end }}
+            actions:
+              - type: button
+                text: '🛠️ 관리자 대시보드 접속'
+                url: 'https://www.plumbing.local/admin'
+
+additionalPrometheusRulesMap:
+  custom-alerts:
+    groups:
+      - name: custom-alerts
+        rules:
+          - alert: HighTrafficSpike
+            expr: sum(rate(mysql_global_status_queries[1m])) > 30
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              description: "웹사이트 트래픽이 폭주하여 DB 쿼리량이 30 QPS를 초과했습니다! (현재: {{ $value | humanize }} QPS)"
+          - alert: DatabaseNodeDown
+            expr: mysql_up == 0
+            for: 15s
+            labels:
+              severity: critical
+            annotations:
+              description: "데이터베이스 노드가 응답하지 않습니다! Failover 상태를 확인하세요."
+          - alert: InstanceDown
+            expr: up == 0
+            for: 15s
+            labels:
+              severity: critical
+            annotations:
+              description: "서버 노드({{ $labels.instance }})가 응답하지 않습니다! 장비가 다운되었거나 네트워크가 끊어졌습니다."
+          - alert: DiskSpaceFull
+            expr: 100 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100) > 90
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              description: "서버 노드({{ $labels.instance }})의 디스크 사용량이 90%를 초과했습니다! (현재: {{ $value | humanize }}%) 즉시 용량을 확보하세요."
+
+# 💡 Promtail(로그 수집기) 활성화 및 Loki 연동 설정
+promtail:
+  enabled: true
+  config:
+    clients:
+      # Loki 서비스의 전체 주소 (loki 서비스, monitoring 네임스페이스)
+      - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
