@@ -34,8 +34,8 @@ services:
     environment:
       # 💡 K8s 이전 테스트 시에도 유연하게 주입할 수 있도록 변경
       - DB_HOST=${DB_HOST:-proxysql} # 기존 db 대신 ProxySQL 컨테이너를 바라보게 수정
-      - DB_PORT=${DB_PORT:-6033}     # ProxySQL의 트래픽 포트 6033으로 연결
-      - DB_USER=${DB_USER:-root}
+       - DB_PORT=${DB_PORT:-6033}     # ProxySQL의 트래픽 포트 6033으로 연결
+       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-your_password}
       - DB_NAME=${DB_NAME:-plumbing_db}
     networks:

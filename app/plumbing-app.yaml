@@ -6,7 +6,7 @@ metadata:
 spec:
   storageClassName: nfs-client
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   resources:
     requests:
       storage: 1Gi
@@ -121,7 +121,7 @@ spec:
             httpGet:
               path: /health
               port: 4000
-            initialDelaySeconds: 15 # 파드 시작 후 15초 뒤부터 검사 시작
+            initialDelaySeconds: 15 # 파드 시작 후 15초 뒤부터 검사 시작g
             periodSeconds: 10       # 10초 주기로 검사
             timeoutSeconds: 3       # 3초 안에 응답이 없으면 실패로 간주
 ---
