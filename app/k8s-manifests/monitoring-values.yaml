@@ -7,7 +7,7 @@ grafana:
   additionalDataSources:
     - name: Loki
       type: loki
-      url: http://loki:3100
+      url: http://loki.monitoring.svc.cluster.local:3100
       access: proxy
       isDefault: false
 
@@ -118,11 +118,3 @@ additionalPrometheusRulesMap:
               severity: critical
             annotations:
               description: "서버 노드({{ $labels.instance }})의 디스크 사용량이 90%를 초과했습니다! (현재: {{ $value | humanize }}%) 즉시 용량을 확보하세요."
-
-# 💡 Promtail(로그 수집기) 활성화 및 Loki 연동 설정
-promtail:
-  enabled: true
-  config:
-    clients:
-      # Loki 서비스의 전체 주소 (loki 서비스, monitoring 네임스페이스)
-      - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
