@@ -15,9 +15,9 @@ export default function StatusPage() {
     const checkSystemStatus = async () => {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-        const res = await fetch(`${API_URL}/api/admin/settings`);
+        const res = await fetch(`${API_URL}/api/admin/settings?_t=${Date.now()}`, { cache: 'no-store' });
         const result = await res.json();
-        if (result.isMaintenance) setIsSystemMaintenance(true);
+        setIsSystemMaintenance(result.isMaintenance === true); // 💡 false일 때 배너 즉시 숨김 보장
       } catch (e) {
         console.error("Status check failed", e);
       }

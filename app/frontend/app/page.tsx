@@ -31,9 +31,9 @@ export default function Home() {
     const checkSystemStatus = async () => {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-        const res = await fetch(`${API_URL}/api/admin/settings`);
+        const res = await fetch(`${API_URL}/api/admin/settings?_t=${Date.now()}`, { cache: 'no-store' });
         const data = await res.json();
-        if (data.isMaintenance) setIsSystemDown(true);
+        setIsSystemDown(data.isMaintenance === true); // 💡 false일 때 확실하게 차단 해제 보장
       } catch (e) {
         console.error("Status check failed", e);
       }

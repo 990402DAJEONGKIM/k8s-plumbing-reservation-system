@@ -81,7 +81,7 @@ export default function AdminDashboard() {
         const result = await fetcher(`/api/admin/calendar?admin=true&_t=${ts}`);
         if (result.success) setData(p => ({ ...p, calendar: result.list }));
       } else if (activeMenu === '설정') {
-        const result = await fetcher(`/api/admin/settings`);
+        const result = await fetcher(`/api/admin/settings?_t=${ts}`); // 💡 설정 조회 시에도 캐시 우회
         if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
         
         const accountResult = await fetcher(`/api/admin/account?admin=true&_t=${ts}`);
