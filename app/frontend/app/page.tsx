@@ -149,6 +149,27 @@ export default function Home() {
                 <button className="w-full bg-red-600 text-white p-5 font-black text-2xl hover:bg-red-700 transition shadow-xl uppercase tracking-tighter">Get Started Now</button>
               </form>
             )}
+
+          {/* 💡 [추가] 1번 방법: DB 글자 수 초과(Data too long) 에러 테스트 전용 버튼 */}
+          {!isSystemDown && (
+            <button 
+              type="button"
+              onClick={async () => {
+                const longText = "테스트텍스트".repeat(100); // 약 600자의 아주 긴 텍스트 (DB 컬럼 제한 초과 유발)
+                const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+                await fetch(`${API_URL}/api/reservations`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: longText, phone: '010-9999-9999', address: longText, issueType: '누수/방수', reservation_datetime: '' }),
+                });
+                alert('💥 [테스트 완료] 의도적으로 너무 긴 데이터를 전송하여 DB 쓰기 에러를 유발했습니다!\n\n관리자 페이지의 [시스템 모니터링] 탭으로 이동하여 에러 로그가 수집되었는지 확인해보세요.');
+              }}
+              className="w-full mt-4 bg-transparent border-2 border-dashed border-gray-500 text-gray-400 p-3 text-sm font-bold hover:border-red-500 hover:text-red-500 transition rounded-sm flex items-center justify-center gap-2"
+            >
+              <AlertCircle size={18} /> DB 글자 수 초과 에러 유발하기 (Loki Test)
+            </button>
+          )}
+
             {submittedNumber && !isSystemDown && (
               <div className="mt-8 p-6 bg-white border-4 border-red-600 text-center animate-bounce shadow-2xl text-black">
                 <p className="font-black text-lg mb-1 italic">CODE: <span className="text-red-600">{submittedNumber}</span></p>

@@ -215,7 +215,9 @@ const LOKI_URL = process.env.LOKI_URL || 'http://loki.monitoring.svc.cluster.loc
 
 async function queryLokiLogs(query, limit = 5) {
     try {
-        const res = await fetch(`${LOKI_URL}/loki/api/v1/query?query=${encodeURIComponent(query)}&limit=${limit}`);
+        // 💡 최근 24시간(86400초) 전부터의 로그를 검색하도록 start 파라미터 추가 (나노초 단위)
+        const startNs = (Date.now() - 24 * 60 * 60 * 1000) * 1000000;
+        const res = await fetch(`${LOKI_URL}/loki/api/v1/query_range?query=${encodeURIComponent(query)}&limit=${limit}&start=${startNs}`);
         const data = await res.json();
         let logs = [];
         if (data.status === 'success' && data.data.result) {
