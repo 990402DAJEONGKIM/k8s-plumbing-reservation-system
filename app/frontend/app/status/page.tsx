@@ -7,20 +7,30 @@ import { useAnnouncements } from '../../lib/hooks';
 export default function StatusPage() {
   const [resNumber, setResNumber] = useState('');
   const [data, setData] = useState<any>(null);
-  const [isMaintenance, setIsMaintenance] = useState(false); // 점검 상태 관리
+  const [isSystemMaintenance, setIsSystemMaintenance] = useState(false); // 💡 시스템 점검 상태 확인용
   const announcements = useAnnouncements(); // 공지사항 상태
+
+  // 💡 페이지 로드 시 실시간으로 점검 상태를 확인하여 상단에 안내 배너만 표시 (조회 기능은 차단하지 않음)
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+        const res = await fetch(`${API_URL}/api/admin/settings`);
+        const result = await res.json();
+        if (result.isMaintenance) setIsSystemMaintenance(true);
+      } catch (e) {
+        console.error("Status check failed", e);
+      }
+    };
+    checkSystemStatus();
+  }, []);
 
   const onSearch = async () => {
     if (!resNumber) return;
-    setIsMaintenance(false); // 검색 시 점검 상태 초기화
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${API_URL}/api/admin/reservations?search=${resNumber.trim()}`);
-      if (res.status === 503) {
-        setIsMaintenance(true);
-        return;
-      }
       const result = await res.json();
       if (res.ok && result.success && result.list && result.list.length > 0) {
         setData(result.list[0]);
@@ -41,37 +51,6 @@ export default function StatusPage() {
     { label: '완료', val: 'COMPLETED', icon: <PackageCheck size={20} /> },
   ];
 
-  // 🚧 [추가] 서버 점검 전용 UI 뷰
-  if (isMaintenance) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
-        <div className="max-w-md w-full bg-white p-12 rounded-[50px] shadow-2xl text-center space-y-8 border-t-[16px] border-amber-400">
-          <div className="flex justify-center text-amber-500 animate-bounce">
-            <Construction size={80} />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black italic text-slate-800 uppercase tracking-tighter">
-              Under <br /> <span className="text-amber-500">Maintenance</span>
-            </h1>
-            <p className="text-slate-500 font-bold leading-relaxed">
-              더 나은 서비스를 위해 시스템 점검 중입니다. <br />
-              잠시 후 다시 접속해 주세요.
-            </p>
-          </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="w-full py-5 bg-slate-900 text-white rounded-3xl flex items-center justify-center gap-3 hover:bg-slate-800 transition-all font-black italic uppercase text-sm shadow-xl"
-          >
-            <RefreshCcw size={18} className="animate-spin-reverse" /> 
-            새로고침
-          </button>
-          <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest pt-4">
-            Plumbing Admin System
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   // 데이터가 없을 때를 대비한 안전한 상태 값 추출
   const currentStatus = (data?.status || 'PENDING').toUpperCase();
@@ -80,6 +59,14 @@ export default function StatusPage() {
   return (
     <div className="min-h-screen bg-[#2b1c6d] py-20 px-4 text-white font-sans">
       <div className="max-w-4xl mx-auto space-y-12 text-center">
+        {/* 💡 점검 모드 활성화 시 표시되는 안내 배너 (조회 기능은 정상 작동함을 명시) */}
+        {isSystemMaintenance && (
+          <div className="bg-amber-500/20 border-2 border-amber-500 text-amber-100 p-4 rounded-xl flex items-center justify-center gap-3 animate-pulse mb-8">
+            <Construction size={24} className="text-amber-400" />
+            <span className="font-bold text-sm">현재 시스템 점검으로 신규 예약이 중단되었습니다. <span className="font-black text-amber-400 underline ml-1">기존 예약 조회는 정상적으로 이용 가능합니다.</span></span>
+          </div>
+        )}
+
         <h1 className="text-5xl font-black italic uppercase tracking-tighter drop-shadow-lg">
           Track <span className="text-red-500">Service</span>
         </h1>
