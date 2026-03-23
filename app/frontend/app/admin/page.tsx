@@ -591,57 +591,6 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* 💡 [추가] Database HA Status (ProxySQL) */}
-              {sysStats.haStatus && (
-                <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left overflow-hidden">
-                  <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic uppercase tracking-tighter"><Database className="text-emerald-500" size={24}/> Database HA Status (ProxySQL)</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left font-black italic">
-                      <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase text-slate-400 tracking-widest">
-                        <tr>
-                          <th className="p-4 font-black">Hostgroup (Role)</th>
-                          <th className="p-4 font-black">Hostname (IP)</th>
-                          <th className="p-4 font-black">Status / Weight</th>
-                          <th className="p-4 font-black">Active Conn</th>
-                          <th className="p-4 font-black">Routed Queries</th>
-                          <th className="p-4 font-black">Read-Only</th>
-                          <th className="p-4 font-black">Replication Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                    {sysStats.haStatus.length > 0 ? (
-                      sysStats.haStatus.map((db: any, idx: number) => {
-                          const isError = db.status !== 'ONLINE' || db.readOnly === 'Unreachable';
-                          return (
-                            <tr key={idx} className={`hover:bg-slate-50 transition ${isError ? 'bg-rose-50/30' : ''}`}>
-                              <td className="p-4 font-black text-slate-800"><span className={`px-2 py-0.5 rounded-md text-[10px] text-white tracking-widest ${db.group === 10 ? 'bg-indigo-500' : 'bg-emerald-500'}`}>{db.group}</span><span className="ml-2">{db.role}</span></td>
-                              <td className="p-4 text-sm text-slate-600 font-mono flex items-center gap-2">
-                                {db.ip}
-                                {db.status === 'ONLINE' && db.weight > 10 ? (
-                                  db.group === 10 
-                                    ? <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-rose-100 text-rose-600 border border-rose-200 flex items-center gap-1 animate-pulse">🔥 ACTIVE WRITER</span>
-                                    : <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center gap-1">🟢 ACTIVE READER</span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest bg-slate-100 text-slate-400 border border-slate-200 flex items-center gap-1">💤 STANDBY</span>
-                                )}
-                              </td>
-                              <td className={`p-4 font-black text-sm ${db.status === 'ONLINE' ? 'text-emerald-500' : 'text-rose-500'}`}>{db.status} <span className="text-slate-400 font-bold">({db.weight})</span></td>
-                              <td className="p-4 text-sm font-black text-indigo-600">{db.connUsed ?? 0}</td>
-                              <td className="p-4 text-sm font-black text-blue-500">{db.queries?.toLocaleString() ?? 0}</td>
-                              <td className={`p-4 text-sm font-black ${db.readOnly === 'OFF' ? 'text-indigo-600' : db.readOnly === 'ON' ? 'text-blue-500' : 'text-rose-500'}`}>{db.readOnly}</td>
-                              <td className={`p-4 text-sm font-mono ${db.replStatus?.includes('Unreachable') ? 'text-rose-500' : 'text-slate-600'}`}>{db.replStatus}</td>
-                            </tr>
-                          );
-                      })
-                    ) : (
-                      <tr><td colSpan={7} className="p-10 text-center text-slate-400 font-bold border-2 border-dashed border-slate-200 bg-slate-50 rounded-3xl">ProxySQL 통계 데이터를 불러오는 중이거나 연결에 실패했습니다.<br/><span className="text-xs text-rose-500 mt-2 block">백엔드 파드의 ProxySQL Admin(6032) 접속 상태를 확인해주세요.</span></td></tr>
-                    )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
               <div className="bg-white rounded-[40px] p-10 border shadow-sm space-y-6 text-left">
                 <h3 className="text-xl font-black italic flex items-center gap-2 font-black italic"><AlertCircle className="text-rose-500" size={24}/> Recent Error Messages</h3>
                 <div className="space-y-3 font-bold italic">

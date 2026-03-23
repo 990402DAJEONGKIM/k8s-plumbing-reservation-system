@@ -18,16 +18,7 @@ const dbConfig = {
 };
 const pool = mysql.createPool(dbConfig);
 
-// 💡 ProxySQL Admin 접속용 Pool 생성
-const proxyAdminPool = mysql.createPool({
-    host: process.env.DB_HOST || '127.0.0.1',
-    user: 'admin',
-    password: 'admin',
-    port: 6032
-});
-
 // 전역 시스템 상태
-let errorLogs = [];
 let isMaintenance = false;
 
 // �️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
@@ -219,50 +210,37 @@ async function queryPromVector(query) {
     return [];
 }
 
-app.get('/api/admin/monitor-data', async (req, res) => {
-    // 💡 HA (고가용성) 상태 실시간 수집
-    let haStatus = [];
-    try {
-        // 1. ProxySQL 라우팅 상태 가져오기
-        const [servers] = await proxyAdminPool.query("SELECT hostgroup_id, hostname, status, weight FROM runtime_mysql_servers");
-        
-        // 💡 ProxySQL 라우팅 통계 (Grafana 메트릭) 가져오기
-        const [stats] = await proxyAdminPool.query("SELECT hostgroup, srv_host, ConnUsed, Queries FROM stats_mysql_connection_pool");
-        
-        // 2. 각 서버별 상세 상태 조회 (직접 접속)
-        for (const srv of servers) {
-            let role = srv.hostgroup_id === 10 ? 'Writer (Master)' : 'Reader (Slave)';
-            let readOnly = 'Unknown';
-            let replStatus = 'N/A';
-            
-            const st = stats.find(s => s.hostgroup === srv.hostgroup_id && s.srv_host === srv.hostname) || { ConnUsed: 0, Queries: 0 };
-            
-            try {
-                const tmpPool = mysql.createPool({ host: srv.hostname, user: 'root', password: '8850', connectTimeout: 1000 });
-                const [roRows] = await tmpPool.query("SHOW VARIABLES LIKE 'read_only'");
-                if (roRows.length > 0) readOnly = roRows[0].Value;
-                
-                const [replRows] = await tmpPool.query("SHOW REPLICA STATUS");
-                if (replRows.length > 0) {
-                    const r = replRows[0];
-                    replStatus = `IO: ${r.Replica_IO_Running}, SQL: ${r.Replica_SQL_Running}, Lag: ${r.Seconds_Behind_Source}s`;
-                }
-                await tmpPool.end();
-            } catch(e) {
-                readOnly = 'Unreachable';
-                replStatus = 'Unreachable';
-            }
-            haStatus.push({ group: srv.hostgroup_id, role, ip: srv.hostname, status: srv.status, weight: srv.weight, readOnly, replStatus, connUsed: st.ConnUsed, queries: st.Queries });
-        }
-    } catch(err) {
-        console.error("HA Monitor Error:", err);
-    }
+// 💡 [추가] Loki에서 실시간 에러 로그를 가져오는 헬퍼 함수
+const LOKI_URL = process.env.LOKI_URL || 'http://loki.monitoring.svc.cluster.local:3100';
 
+async function queryLokiLogs(query, limit = 5) {
+    try {
+        const res = await fetch(`${LOKI_URL}/loki/api/v1/query?query=${encodeURIComponent(query)}&limit=${limit}`);
+        const data = await res.json();
+        let logs = [];
+        if (data.status === 'success' && data.data.result) {
+            data.data.result.forEach(stream => {
+                stream.values.forEach(val => {
+                    const tsMs = parseInt(val[0].substring(0, 13)); // 나노초를 밀리초로 변환
+                    const dateStr = new Date(tsMs).toLocaleTimeString('ko-KR', { hour12: false });
+                    let msg = val[1].replace(/\n/g, ' ').trim(); // 줄바꿈 제거
+                    logs.push({ id: val[0], time: dateStr, message: msg.length > 100 ? msg.substring(0, 100) + '...' : msg });
+                });
+            });
+            // 최신순(시간 역순) 정렬
+            logs.sort((a, b) => b.id.localeCompare(a.id));
+            return logs.slice(0, limit);
+        }
+    } catch (e) { console.error("Loki Fetch Error:", e); }
+    return [];
+}
+
+app.get('/api/admin/monitor-data', async (req, res) => {
     // 1. 병렬로 여러 PromQL 쿼리 실행 (전체 요약 + 노드별 상세 데이터 한 번에 조회)
     const [
         cpu, mem, disk, netRx, podRun, podTotal, nodeReady, nodeTotal, 
         cpuVec, memVec, diskVec, nodeStatusVec, nodeInfoVec, upVec,
-        mysqlQps, mysqlConn, mysqlSlow, mysqlReplLag
+        mysqlQps, mysqlConn, mysqlSlow, mysqlReplLag, recentLogs
     ] = await Promise.all([
         queryProm('100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)'), // CPU 사용률
         queryProm('100 - (avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)'), // RAM 사용률 (전체 노드 평균으로 수정)
@@ -284,7 +262,9 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         queryProm('sum(rate(mysql_global_status_queries[1m]))'),
         queryProm('sum(mysql_global_status_threads_connected)'),
         queryProm('sum(rate(mysql_global_status_slow_queries[1m]))'),
-        queryProm('max(mysql_slave_status_seconds_behind_master)')
+        queryProm('max(mysql_slave_status_seconds_behind_master)'),
+        // 💡 [추가] ProxySQL 및 Backend에서 발생한 에러 로그 실시간 병렬 조회
+        queryLokiLogs('{app=~"plumbing-proxysql|plumbing-backend"} |~ "(?i)denied|refused|error|fail"', 5)
     ]);
 
     // 2. 결과 조합 (데이터가 없으면 가상 데이터 반환)
@@ -409,7 +389,7 @@ app.get('/api/admin/monitor-data', async (req, res) => {
         ];
     }
 
-    res.json({ success: true, metrics, nodeDetails, haStatus, errCount: errorLogs.length, logs: errorLogs });
+    res.json({ success: true, metrics, nodeDetails, errCount: recentLogs ? recentLogs.length : 0, logs: recentLogs || [] });
 });
 
 // [API] 5. 관리자 계정
