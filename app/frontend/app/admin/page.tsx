@@ -147,7 +147,13 @@ export default function AdminDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type })
       });
-      if (result.success) setConfig({ isMaintenance: result.isMaintenance, notificationEnabled: result.notificationEnabled });
+      if (result.success) {
+        // 💡 전달받은 명확한 값만 업데이트하고, 나머지는 기존 상태(prev)를 유지하여 UI 충돌을 방지합니다.
+        setConfig(prev => ({ 
+          isMaintenance: result.isMaintenance !== undefined ? result.isMaintenance : prev.isMaintenance, 
+          notificationEnabled: type === 'notification' ? !prev.notificationEnabled : prev.notificationEnabled 
+        }));
+      }
     } catch (e) { console.error("Toggle Failed"); }
   };
 

@@ -29,7 +29,8 @@ app.use(async (req, res, next) => {
     if (req.method !== 'GET' && !req.path.startsWith('/api/admin/')) {
         try {
             // 💡 DB에서 점검 상태 실시간 확인 (모든 파드가 완벽하게 동일한 상태 공유)
-            const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+            // 💡 ProxySQL의 SELECT 캐싱을 강제로 우회(Bypass)하여 100% 최신 상태를 읽어옵니다.
+            const [rows] = await pool.query(`WITH _nc AS (SELECT 1) SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
             if (rows.length > 0 && rows[0].setting_value === 'true') {
                 return res.status(503).json({ success: false, message: "현재 서버 점검 중입니다." });
             }
@@ -182,7 +183,7 @@ app.get('/api/admin/customers', async (req, res) => {
 // [API] 3. 설정 및 백업
 app.get('/api/admin/settings', async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+        const [rows] = await pool.query(`WITH _nc AS (SELECT 1) SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
         const isMaintenance = rows.length > 0 && rows[0].setting_value === 'true';
         res.json({ success: true, isMaintenance, notificationEnabled: true });
     } catch (err) { res.json({ success: false, isMaintenance: false, notificationEnabled: true }); }
@@ -190,15 +191,19 @@ app.get('/api/admin/settings', async (req, res) => {
 
 app.post('/api/admin/settings/toggle', async (req, res) => {
     const { type } = req.body;
-    if (type === 'maintenance') {
-        try {
-            const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
-            const current = rows.length > 0 && rows[0].setting_value === 'true';
-            const newVal = current ? 'false' : 'true';
+    try {
+        // 💡 현재 점검 모드 DB 상태를 먼저 조회하여 모든 토글 응답에 포함시킵니다.
+        const [rows] = await pool.query(`WITH _nc AS (SELECT 1) SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
+        const currentMaint = rows.length > 0 && rows[0].setting_value === 'true';
+
+        if (type === 'maintenance') {
+            const newVal = currentMaint ? 'false' : 'true';
             await pool.query(`UPDATE system_settings SET setting_value = ? WHERE setting_key = 'isMaintenance'`, [newVal]);
-            res.json({ success: true, isMaintenance: newVal === 'true', notificationEnabled: true });
-        } catch (err) { res.status(500).json({ success: false }); }
-    } else { res.json({ success: true, notificationEnabled: true }); }
+            res.json({ success: true, isMaintenance: newVal === 'true' });
+        } else {
+            res.json({ success: true, isMaintenance: currentMaint });
+        }
+    } catch (err) { res.status(500).json({ success: false }); }
 });
 
 app.get('/api/admin/backup/download', (req, res) => {
