@@ -148,15 +148,17 @@ export default function Home() {
                 <div className="bg-red-600/20 p-6 rounded-full mb-6 text-red-500 animate-pulse">
                   <AlertCircle size={64} />
                 </div>
-                <h4 className="text-3xl font-black text-white mb-4 italic tracking-tighter">시스템 긴급 점검 중</h4>
+                <h4 className="text-3xl font-black text-white mb-4 italic tracking-tighter">서버 점검 안내</h4>
                 <p className="text-gray-300 font-bold leading-relaxed mb-8 text-sm">
-                  현재 데이터베이스 서버 장애로 인해<br />신규 예약 접수가 일시적으로 중단되었습니다.<br/>
-                  최대한 빠른 시간 내에 복구하겠습니다.<br/>
-                  <span className="text-red-400 mt-2 block">(※ 기존 예약 조회는 정상적으로 이용 가능합니다.)</span>
+                  보다 안정적인 서비스 제공을 위해 <br />현재 시스템 점검을 진행하고 있습니다.<br/>
+                  <br/>
+                  <span className="text-red-400 font-black text-lg block bg-red-900/30 py-3 rounded-lg">
+                    신규 예약은 일시 중단되며,<br/>기존 예약 조회만 정상 이용 가능합니다.
+                  </span>
                 </p>
-                <button onClick={() => setIsSystemDown(false)} className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-bold transition uppercase text-xs tracking-widest border border-white/20">
-                  돌아가기
-                </button>
+                <a href="/status" className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-black transition uppercase text-sm tracking-widest border border-white/20 flex items-center gap-2">
+                  예약 조회하러 가기 <Search size={18} />
+                </a>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">

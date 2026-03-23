@@ -25,8 +25,8 @@ pool.query(`CREATE TABLE IF NOT EXISTS system_settings (setting_key VARCHAR(50) 
 
 // �️ [검문소] 서버 점검 모드 체크 (반드시 API 정의보다 위에 위치!)
 app.use(async (req, res, next) => {
-    // 💡 점검 모드라도 GET(조회) 요청은 허용, 쓰기/수정/삭제 요청(POST, PUT, PATCH, DELETE)만 차단
-    if (req.method !== 'GET' && !req.path.includes('/api/admin/settings')) {
+    // 💡 관리자용 API(/api/admin/*)는 점검 모드에서도 정상 작동하도록 허용하고, 사용자 접근(예약 접수 등)만 완벽히 차단
+    if (req.method !== 'GET' && !req.path.startsWith('/api/admin/')) {
         try {
             // 💡 DB에서 점검 상태 실시간 확인 (모든 파드가 완벽하게 동일한 상태 공유)
             const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
@@ -184,8 +184,8 @@ app.get('/api/admin/settings', async (req, res) => {
     try {
         const [rows] = await pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'isMaintenance'`);
         const isMaintenance = rows.length > 0 && rows[0].setting_value === 'true';
-        res.json({ isMaintenance, notificationEnabled: true });
-    } catch (err) { res.json({ isMaintenance: false, notificationEnabled: true }); }
+        res.json({ success: true, isMaintenance, notificationEnabled: true });
+    } catch (err) { res.json({ success: false, isMaintenance: false, notificationEnabled: true }); }
 });
 
 app.post('/api/admin/settings/toggle', async (req, res) => {
