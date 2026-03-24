@@ -216,6 +216,7 @@ spec:
   tls:
   - hosts:
     - www.plumbing.local
+    - 172.16.0.201.nip.io
     secretName: plumbing-tls-secret
   rules:
     - host: www.plumbing.local
@@ -229,6 +230,77 @@ spec:
                 port:
                   number: 4000
           - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-frontend-svc
+                port:
+                  number: 3000
+    # 💡 모바일 테스트용 nip.io 도메인 라우팅 추가 (일반 진입점)
+    - host: 172.16.0.201.nip.io
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-backend-svc
+                port:
+                  number: 4000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-frontend-svc
+                port:
+                  number: 3000
+---
+# 4.5 관리자 전용 Ingress (IP 제한 적용)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: admin-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # 💡 기존 PC IP 뒤에 쉼표(,)를 찍고 확인된 휴대폰 IP를 추가합니다.
+    nginx.ingress.kubernetes.io/whitelist-source-range: "172.16.0.1/32, 10.0.255.13/32"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - www.plumbing.local
+    - 172.16.0.201.nip.io
+    secretName: plumbing-tls-secret
+  rules:
+    - host: www.plumbing.local
+      http:
+        paths:
+          - path: /api/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-backend-svc
+                port:
+                  number: 4000
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-frontend-svc
+                port:
+                  number: 3000
+    # 💡 모바일 테스트용 nip.io 도메인 라우팅 추가 (관리자 진입점)
+    - host: 172.16.0.201.nip.io
+      http:
+        paths:
+          - path: /api/admin
+            pathType: Prefix
+            backend:
+              service:
+                name: plumbing-backend-svc
+                port:
+                  number: 4000
+          - path: /admin
             pathType: Prefix
             backend:
               service:
